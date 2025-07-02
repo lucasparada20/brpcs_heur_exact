@@ -42,7 +42,7 @@ Lastly, this code will store results and output files in a directory named `resu
 
 ## Bicycle Sharing Systems (BSS) Data
 
-The data used to build the instance is the so-called station status and information `.json` files, which are publicly available in several real-life systems worldwide. It can be downloaded from this Google Drive [link](https://drive.google.com/file/d/1PWKDxaVms-xRzeTgJuXA1bjafW2uH0Eg/view?usp=drive_link). There are over two months of data in the link.
+The data used to build the instance is the so-called station status and information `.json` files, which are publicly available in several real-life systems worldwide. It can be downloaded from this Google Drive [link](https://drive.google.com/file/d/1PWKDxaVms-xRzeTgJuXA1bjafW2uH0Eg/view?usp=drive_link). There are over two months of data in the link in the form of daily JSON files
 
 The link also has some interesting Unix shell scripts that will update and scrub the data; therefore, I recommend downloading the data and unzipping it into the `brpcs_heur` directory.
 
@@ -60,4 +60,18 @@ The following script will count the current number of bicycles in the systems, a
 
 ```bash
 ./countBikes.sh
+```
+
+To run this script, you will need `jq`, a JSON command line processor. It can be installed with the following command:
+
+```bash
+sudo apt-get install jq
+```
+
+## Instance Generator
+
+The generator requires the following command to be compiled, asuming that you unzipped the Google Drive link into `brpcs_heur/data_brpcs`
+
+```bash
+(cd src_generator && g++ -O3 main.cpp RandomNumbers.cpp -o gen)
 ```
