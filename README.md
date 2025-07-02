@@ -32,6 +32,19 @@ Alternatively, inside the directory `src_heur`, you will also find a `Makefile` 
 (cd src_heur && make) # Assuming you are in the brpcs_heur directory
 ```
 
+3. The compiler needs an absolute path to your installed Cplex library. To provide the path, go into src_heur/CMakeLists.txt and edit the following line:
+
+```cmake
+set(CPLEX_DIR "/some/path/to/Cplex")
+```
+
+or, if you are building with the provided Makefile, go into src_heur/Makefile and edit the following line:
+
+```Makefile
+# CPLEX directory
+CPLEX_DIR = /some/path/to/Cplex
+```
+
 To call the executable for these instances, the script `run_heur.sh` contains all the shell commands you need, for example:
 
 ```bash
