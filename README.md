@@ -45,7 +45,7 @@ or, if you are building with the provided Makefile, go into src_heur/Makefile an
 CPLEX_DIR = /some/path/to/Cplex
 ```
 
-To call the executable for these instances, the script `run_heur.sh` contains all the shell commands you need, for example:
+To call the executable, the script `run_heur.sh` contains all the shell commands you need, for example:
 
 ```bash
 build/exec_heur instance_file=instances/quebec166_20.txt
