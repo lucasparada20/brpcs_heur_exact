@@ -73,7 +73,7 @@ sudo apt-get install jq
 The generator requires the following command to be compiled, assuming that you unzipped the Google Drive link into `brpcs_heur/data_brpcs`:
 
 ```bash
-(cd src_generator && g++ -O3 main.cpp RandomNumbers.cpp -o gen)
+(cd generator && g++ -O3 main.cpp RandomNumbers.cpp -o gen)
 ```
 
 To call the executable of the generator, the following is the format of the command line required:
