@@ -4,7 +4,7 @@ CXX = g++
 CXXFLAGS ?= -std=c++11 -Wall
 
 # CPLEX directory
-CPLEX_DIR = /some/path/to/CPLEX_Studio2211
+CPLEX_DIR = /some/path/to/Cplex
 
 # Include and lib paths
 CPLEX_INC = -I$(CPLEX_DIR)/cplex/include -I$(CPLEX_DIR)/concert/include
@@ -52,7 +52,7 @@ check_dirs:
 
 # Debug rule
 debug: clean
-	$(MAKE) all CXXFLAGS="-std=c++11 -Wall -O0 -ggdb3 -fsanitize=address -fsanitize=undefined"
+	$(MAKE) all CXXFLAGS="-Wall -ggdb3 -fsanitize=address -fsanitize=undefined"
 
 # Usage message
 usage:
