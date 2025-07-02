@@ -44,7 +44,7 @@ Lastly, this code will store results and output files in a directory named `resu
 
 The data used to build the instance is the so-called station status and information `.json` files, which are publicly available in several real-life systems worldwide. It can be downloaded from this Google Drive [link](https://drive.google.com/file/d/1PWKDxaVms-xRzeTgJuXA1bjafW2uH0Eg/view?usp=drive_link). There are over two months of data in the link.
 
-Some interesting Unix shell scripts will update and scrub the data; therefore, I recommend downloading the data and unzipping it into the `brpcs_heur` directory.
+The link also has some interesting Unix shell scripts that will update and scrub the data; therefore, I recommend downloading the data and unzipping it into the `brpcs_heur` directory.
 
 ### Updating the BSS data
 
