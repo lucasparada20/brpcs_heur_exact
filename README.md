@@ -70,8 +70,18 @@ sudo apt-get install jq
 
 ## Instance Generator
 
-The generator requires the following command to be compiled, asuming that you unzipped the Google Drive link into `brpcs_heur/data_brpcs`
+The generator requires the following command to be compiled, assuming that you unzipped the Google Drive link into `brpcs_heur/data_brpcs`:
 
 ```bash
 (cd src_generator && g++ -O3 main.cpp RandomNumbers.cpp -o gen)
 ```
+
+To call the executable of the generator, the following is the format of the command line required:
+
+```bash
+generator/gen uncharged_percentage=0.20 city_name=quebec seed=19900316 
+```
+
+Here, `uncharged_percentage` is the sought percentage of electrically uncharged bikes in the network for the total amount of bikes, and `seed` is to initialize the pseudo-random number generator. 
+
+Once you enter the sample command, the generator will create one instance for the BSS in Québec, Canada. This instance will include the actual locations of the bike stations throughout the city, along with the average number of bicycles intended to be available at each station. The latter quantities are referred to as the target levels. Additionally, it will provide the most recent initial quantities of bicycles currently available at these locations.
