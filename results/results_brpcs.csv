@@ -1,4 +1,4 @@
-﻿City,Stations,ChargingSts,HasRealChargingSts?,InitReg,InitEelec,InitU,CN Ub,CN Dist,CN Cost,CN Drv,CN Seconds,RSTK Ub,RSTK Dist,RSTK Cost,RSTK Drv,RSTK Seconds
+﻿City,Stations,ChargingSts,HasRealChargingSts?,InitReg,InitElec,InitU,CN Ub,CN Dist,CN Cost,CN Drv,CN Seconds,RSTK Ub,RSTK Dist,RSTK Cost,RSTK Drv,RSTK Seconds
 antwerp, 819 , 171 , -   ,450,993,186,806.028,972.028,-166,11,8759.79,806.028,972.028,-166,11,7367.55
 barcelona, 519 , 105 , -   ,2500,1252,237,152.397,237.397,-85,7,12873.91,152.397,237.397,-85,7,12748.16
 boston, 543 , 107 , -   ,4062,263,46,370.655,416.655,-46,8,9393.72,370.655,416.655,-46,8,8886.23
