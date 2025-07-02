@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # if no -std=c++11, generate an error rather than silently falling back to an older standard.
 
 # Hard code the path to the CPLEX directory
-set(CPLEX_DIR "/some/path/to/CPLEX_Studio2211")
+set(CPLEX_DIR "/some/path/to/Cplex")
 message("Using CPLEX_DIR = ${CPLEX_DIR}")
 
 # Include directories for CPLEX
