@@ -52,7 +52,7 @@ The following script will retrieve the snapshot `station_information' and `stati
 
 ```bash
 ./updateData.sh
-'''
+```
 
 ### Current available bicycles
 
@@ -60,4 +60,4 @@ The following script will count the current number of bicycles in the systems, a
 
 ```bash
 ./countBikes.sh
-'''
+```
