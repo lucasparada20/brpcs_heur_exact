@@ -61,7 +61,7 @@ The link also has some interesting Unix shell scripts that will update and scrub
 
 ### Updating the BSS data
 
-The following script will retrieve the snapshot `station_information` and `station_status` files and store them in the respective directories for the cities of the bicycle sharing systems.
+The following script will retrieve the snapshot `station_information` and `station_status` files and store them in the respective directories for the cities of the BSS.
 
 ```bash
 ./updateData.sh
