@@ -83,7 +83,7 @@ sudo apt-get install jq
 
 ## Instance Generator
 
-The generator requires the following command to be compiled, assuming that you unzipped the Google Drive link into `brpcs_heur/data_brpcs`:
+Besides the data in the Google Drive link, the generator requires the following command to be compiled, assuming that you unzipped the Google Drive link into `brpcs_heur/data_brpcs`:
 
 ```bash
 (cd generator && g++ -O3 main.cpp RandomNumbers.cpp -o gen)
