@@ -29,6 +29,10 @@ public:
 	int CalculateContinueToNextMIP(std::vector<Node*>& nodes, int Q, int delta);
 	int CalculateContinueToNextMIP(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	
+	int CalculateContinueToNextDP(std::vector<Node*>& nodes, int Q, int delta);
+	bool CheckSummedInequality(Node* node, int x, int e, int W, int z_k);
+	bool SkipForGivenXE(Node* node, int x, int e);
+	
 	// Lb
 	static double CalculateSequenceLb(std::vector<Node*>& nodes, int Q, int delta);
 	

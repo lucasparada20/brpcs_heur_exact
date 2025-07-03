@@ -50,6 +50,7 @@ int RouteFeasibility::CalculateContinueToNextMIP(std::vector<Node*>& nodes, int 
 	IloEnv env;
 	int cost = CalculateContinueToNextMIP(nodes,Q,delta,env);
 	env.end(); 
+	//int cost = CalculateContinueToNextDP(nodes,Q,delta);
 	
 	_paths_map_continue->Assign(path_ids,cost+1000); //Just assign the integer recourse
 	
@@ -1260,4 +1261,194 @@ double RouteFeasibility::CalculateSequenceLb(std::vector<Node*>& nodes, int Q, i
         }
     }
 	return max_L;
+}
+
+int RouteFeasibility::CalculateContinueToNextDP(std::vector<Node*>& nodes, int Q, int delta)
+{
+	int t =  nodes.size() - 2; // t is without counting depots
+	if(t < 1) return 0.0;
+	
+    double inf = 99999;
+
+    // DP table: dp[k][x][e][u] holds the minimum cost at node k with combined load (x, e, u)
+    std::vector<std::vector<std::vector<std::vector<double>>>> dp(
+        t + 2, std::vector<std::vector<std::vector<double>>>(
+            Q + 1, std::vector<std::vector<double>>(
+                Q + 1, std::vector<double>(
+                    Q + 1, inf
+                )
+            )
+        )
+    );
+
+    // Initialization of the final state
+    for (int x = 0; x <= Q; ++x)
+	{
+		for (int e = 0; e <= Q - x; ++e)
+            for (int u = 0; u <= Q - x - e; ++u)
+				dp[t + 1][x][e][u] = 0;
+	}
+        
+    // Compute Total1, Total2
+	/*int Total1 =  0, Total2 =0;
+    for (int x = 0; x <= Q; x++) {
+        for (int e = 0; e <= Q - x; e++) {
+            Total1++;
+        }
+    }
+
+    for (int x = 0; x <= Q; x++) {
+        for (int e = 0; e <= Q - x; e++) {
+            for (int u = 0; u <= Q - x - e; u++) {
+                for (int z_k = 0; z_k <= u; z_k++) {
+                    Total2++;
+                }
+            }
+        }
+    }*/
+
+	double global_min_cost = inf;
+	int skipped1 = 0, skipped2 = 0, skipped3 = 0;
+
+	for (int k = t; k >= 1; --k) {	
+		Node* node = nodes[k]; // For vectors with depots
+		//printf("Beginning loop at node:\n");
+		//node->Show();
+
+        for (int x = 0; x <= Q; x++) {
+            for (int e = 0; e <= Q - x; e++) {
+				
+				bool skip = SkipForGivenXE(node, x, e);
+				if (skip) {
+					skipped1++; 
+					continue;
+				}
+
+                for (int u = 0; u <= Q - x - e; u++) {
+                    double min_cost = inf;
+					
+					bool skip_summed = CheckSummedInequality(node, x, e, node->maxWm, u);
+					if (skip_summed) {
+						skipped2++;  
+						continue;
+					}
+									
+                    // Evaluate feasible combinations
+                    for (int z_k = 0; z_k <= u; z_k++) {
+						/*bool skip_summed2 = CheckSummedInequality(node, x, e, node->maxWm, z_k);
+						if (skip_summed2) {
+							skipped3++;  
+							continue;
+						}*/
+						
+						for (int w_minus_x = 0; w_minus_x <= node->maxWm - z_k; w_minus_x++) {
+							for (int w_minus_e = 0; w_minus_e <= node->maxWm - z_k - w_minus_x; w_minus_e++) {						
+                                for (int w_plus_x = 0; w_plus_x <= node->h_i0; w_plus_x++) {
+                                    for (int w_plus_e = 0; w_plus_e <= node->h_e_i0; w_plus_e++) {
+                                        int new_x = x + node->q + w_minus_x - w_plus_x;
+                                        int new_e = e + node->q_e + w_minus_e - w_plus_e;
+                                        int new_u = u - z_k;
+										if (new_x < 0 || new_e < 0 || new_u < 0 || new_x + new_e + new_u > Q || w_minus_x + w_minus_e + z_k > node->maxWm)
+                                            continue;
+
+                                        if (node->is_chargeable) {
+                                            double total_cost_chargeable = w_minus_x + w_minus_e + w_plus_x + w_plus_e - z_k + dp[k + 1][new_x][new_e][new_u];
+
+                                            if (total_cost_chargeable < min_cost) {
+                                                min_cost = total_cost_chargeable;
+                                                dp[k][x][e][u] = min_cost;
+                                            }
+                                        } else { // Non-chargeable case
+                                            for (int y_k = 0; y_k <= node->h_u_i0; y_k++) {
+												new_u = u - z_k + y_k;
+                                                if (new_u < 0 || new_x + new_e + new_u > Q) continue;
+
+                                                double total_cost_nonchargeable = w_minus_x + w_minus_e + w_plus_x + w_plus_e + node->h_u_i0 - y_k + z_k + dp[k + 1][new_x][new_e][new_u];
+
+                                                if (total_cost_nonchargeable < min_cost) {
+                                                    min_cost = total_cost_nonchargeable;
+                                                    dp[k][x][e][u] = min_cost;
+                                                }
+                                            }
+                                        }
+										// Track minimum cost for dp[1][x][e][0]
+										if (k == 1 && u == 0 && min_cost < global_min_cost) {
+											global_min_cost = min_cost;
+										}
+										
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+					
+				}
+				//if(min_cost > 9999.0)
+				//if(min_cost < 9999.0 && skip)
+				//if(skip)
+				//{
+					//printf("Position:%d x:%d e:%d\n",k,x,e); 
+					//node->Show();
+					//getchar();
+				//}
+            }
+        }
+    }
+	//std::cout << "States skipped1:" << skipped1 << " skipped2:" << skipped2 /*<< " skipped3:" << skipped3 */ << std::endl;
+	//printf("\nStates skipped1:%d/%d skipped2:%d/%d\n",skipped1,Total1,skipped2,Total2);
+	return global_min_cost;
+
+}
+
+
+bool RouteFeasibility::CheckSummedInequality(Node* node, int x, int e, int W, int z_k) {
+
+    //int rhs = (node->h_i0 + node->h_e_i0) - std::max(W - z_k, 0) - (node->q + node->q_e);
+
+    //if (x + e < rhs) {
+        //printf("INFEASIBLE SUM: x+e=%d, RHS=%d, x=%d, e=%d, W=%d, z_k=%d\n", 
+        //       x+e, rhs, x, e, W, z_k);
+    //   return false;
+    //}
+
+    int bound1X = x + node->q + std::max(W - z_k, 0);
+    int bound2X = x + node->q + std::max(W - z_k, 0) - node->h_i0;
+
+    int bound1E = e + node->q_e + std::max(W - z_k, 0);
+    int bound2E = e + node->q_e + std::max(W - z_k, 0) - node->h_e_i0;
+
+    bool feasible_x = (bound1X >= 0);  // Ensures w^{x-} exists
+    bool feasible_e = (bound1E >= 0);  // Ensures w^{e-} exists
+
+    if (!feasible_x || !feasible_e) {
+        //printf("INFEASIBLE INDIVIDUAL: x=%d, e=%d, z=%d, q=%d, qE=%d, boundX=[%d, %d], boundE=[%d, %d], W=%d\n", 
+        //       x, e, z_k,node->q,node->q_e, bound1X, bound2X, bound1E, bound2E, W);
+        return true;
+    }
+
+    return false;
+}
+
+//Computes bounds on wE_minus and wX_minus
+bool RouteFeasibility::SkipForGivenXE(Node* node, int x, int e) {
+	
+	bool skip = false;
+	int bound1X = -node->q - x;
+	int bound2X = -node->q - x + node->h_i0;
+	
+	int bound1E = -node->q_e - e;
+	int bound2E = -node->q_e - e + node->h_e_i0;
+	
+	if ((bound1X > node->maxWm && bound2X > node->maxWm) || (bound1E > node->maxWm && bound2E > node->maxWm)) {
+		skip = true;
+	}
+
+	//if (skip /*|| (node->maxWm < 5 && (node->q < 0 || node->q_e <0))*/) {
+	//	printf("Skipping x=%d, e=%d, q=%d, q_e=%d\n", x, e, node->q, node->q_e);
+	//	printf("X bounds: [%d, %d], maxWm: %d\n", bound1X, bound2X, node->maxWm);
+	//	printf("E bounds: [%d, %d], maxWm: %d\n", bound1E, bound2E, node->maxWm);
+	//}
+
+	return skip;  
 }
