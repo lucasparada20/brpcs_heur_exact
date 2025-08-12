@@ -48,7 +48,7 @@ CPLEX_DIR = /some/path/to/Cplex
 To call the executable, the script `run_heur.sh` contains all the shell commands you need, for example:
 
 ```bash
-build/exec_heur instance_file=instances/quebec166_20.txt construction_heuristic=SEQ
+build/exec_heur instance_file=instances/quebec167_20_SW.txt construction_heuristic=SEQ
 ```
 
 Lastly, this code will store results and output files in a directory named `results`. Therefore, ensure that you create it within the `brpcs_heur` directory first.
