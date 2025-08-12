@@ -41,12 +41,7 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
         exit(1);
     }
 	std::cout << "Loading filename:" << filename << std::endl;
-	
-	//Assumption for maximum route duration
-	//1.-Amazon drivers drive, on average 100+ miles per day. We thus set the hard limit to <= 100 miles = 160 km
-	//Parameters::SetMaxRouteDistance(160);
-	Parameters::SetMaxRouteDistance(100);
-	
+		
     // Read the meta data
 	std::string line;
     std::getline(infile, line);
@@ -54,14 +49,21 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	
 	//output from the generator is (to be read in the same order):
 	//stations, sumCap, sumInitReg, sumInitElec, sumInitU, sumqReg, sumqElec, sumAbsReg, sumAbsElec
-	int stations, sumCap, sumInitReg, sumInitElec, sumInitU, sumqReg, sumqElec, sumAbsReg, sumAbsElec;
-	if(!(iss >> stations >> sumCap >> sumInitReg >> sumInitElec >> sumInitU >> sumqReg >> sumqElec >> sumAbsReg >> sumAbsElec ))
+	std::string bss_type;
+	int stations, nbCharging, sumCap, sumInitReg, sumInitElec, sumInitU, sumqReg, sumqElec, sumAbsReg, sumAbsElec;
+	if(!(iss >> bss_type >> stations >> nbCharging >> sumCap >> sumInitReg >> sumInitElec >> sumInitU >> sumqReg >> sumqElec >> sumAbsReg >> sumAbsElec ))
 	{
-		std::cout << "Error in meta data line ..." << std::endl; exit(1);
+		std::cout << "Error in meta data line ..." << std::endl; 
+		std::cout << line << std::endl;
+		exit(1);
 	}
-	std::cout << "Stations:" << stations << " sumCap:" << sumCap << " sumInitReg:" << sumInitReg 
+	std::cout << "BSSType:" << bss_type << " Stations:" << stations << " nbCharging:" << nbCharging  
+			  << " sumCap:" << sumCap << " sumInitReg:" << sumInitReg 
 			  << " sumInitElec:" << sumInitElec << " sumInitU:" << sumInitU << " sumqReg:" << sumqReg
 			  << " sumqElec:" << sumqElec << " sumAbsReg:" << sumAbsReg << " sumAbsElec:" << sumAbsElec << std::endl;
+	
+	Parameters::SetBSSType((char*)bss_type.c_str());
+	printf("Bss type from load: %s\n",Parameters::GetBSSType() == 1? "CS" : "SW");
 	
 	std::vector<Node> nodes;
 	nodes.reserve(stations+1);
@@ -134,7 +136,9 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 		//pr.GetCustomer(i)->Show();
 	
 	//Add the depots : two for each customer
-	for(int i = 0 ; i < stations-1; i++)
+	int max_drivers = std::ceil( (stations-1)*0.1 );
+	//int max_drivers = stations-1;
+	for(int i = 0 ; i < std::min(max_drivers,50); i++)
 	{
 		Node dep1;
 		dep1.id = stations - 1 + i*2;
@@ -168,9 +172,16 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	
 	int dim = nodes.size()+1;
 	double ** d = new double*[dim];
+
+	//Assumption for maximum route duration
+	//1.-Amazon drivers drive, on average 100+ miles per day. We thus set the hard limit to <= 100 miles = 160 km
+	//Parameters::SetMaxRouteDistance(160);
+	Parameters::SetMaxRouteDistance(100.0);
+	//Parameters::SetMaxRouteDistance(50.0);
 	
 	//printf("Distance Matrix:\n");
 	// Order is:  Nodes 0 ... dim-2 are customers. Node dime-1 is the first depot created
+	double max_distance = 0.0;
 	for(int i=0;i<dim;i++)
 	{
       Node * n1 = pr.GetNode(i);
@@ -182,7 +193,9 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 		 //n1->Show();
 		 //n2->Show();
 		 
-		 d[n1->distID][n2->distID] = i==j ? 0 : CalculateHarvesineDistance(n1,n2);		
+		d[n1->distID][n2->distID] = i==j ? 0 : CalculateHarvesineDistance(n1,n2);
+		if(d[n1->distID][n2->distID] > max_distance)
+			max_distance = d[n1->distID][n2->distID];
 		//printf("distID:%d distID:%d = %d\n",n1->distID,n2->distID,(int)d[n1->distID][n2->distID]);
 		//all_distances.push_back(d[n1->distID][n2->distID]); // Store the distance in the vector
 		if(d[n1->distID][n2->distID] > 100.0) // An intercity distance of >100km should be wrong!
@@ -197,6 +210,7 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
       }
 	  //getchar();
 	}
+	printf("Max distance in the matrix:%.1lf\n",max_distance);
 	
 	/*for(int i=0; i<dim; i++)
 	{
@@ -209,4 +223,88 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	
 	pr.SetMaxtrices(d,dim);	
 	
+}
+
+void LoadBRPCS::LoadSolution(Prob & pr, Sol & sol, char * filename)
+{
+    std::ifstream infile(filename);
+    if (!infile)
+    {
+        std::cerr << "Error in the solution filename: " << filename << std::endl;
+        exit(1);
+    }
+	std::cout << "Loading solution filename:" << filename << std::endl;
+		
+    // Read the meta data
+	std::string line;
+    std::getline(infile, line);
+	std::istringstream file_line_1(line);
+	int nb_stations = -1; int nb_routes = -1; char comma; // to discard commas
+	if( !(file_line_1 >> nb_stations >> comma >> nb_routes) || nb_routes < 0)
+	{
+		printf("Error reading the first line. Exiting\n"); 
+		printf("line:%s\n",line.c_str());
+		exit(1);
+	}
+	
+	std::vector<std::vector<int>> route_ints; route_ints.resize( nb_routes, std::vector<int>(0) );
+	for (int i = 0; i < nb_routes; i++)
+	{
+		std::string header_line;
+		if (!std::getline(infile, header_line)) {
+			std::cout << "Unexpected EOF while reading header for route " << i << "\n";
+			exit(1);
+		}
+		
+		// --- Read header line ---
+		std::istringstream header_stream(header_line);
+		int route_id, nb_stations, sum_q, sum_qe;
+		double dist;
+		
+
+		if (!(header_stream >> route_id >> comma >> nb_stations >> comma >> sum_q >> comma >> sum_qe >> comma >> dist)) {
+			std::cerr << "Error parsing header line for route " << i << ": " << header_line << "\n";
+			exit(1);
+		}
+
+		std::cout << "Route " << route_id << " | Stations: " << nb_stations
+				  << " | SumQ: " << sum_q << " | SumQE: " << sum_qe
+				  << " | Dist: " << dist << "\n";
+
+		// --- Read sequence line ---
+		std::string seq_line;
+		if (!std::getline(infile, seq_line)) {
+			std::cout << "Unexpected EOF while reading sequence for route " << i << "\n";
+			exit(1);
+		}
+
+		std::vector<int> sequence; sequence.reserve(nb_stations+2);
+		std::stringstream seq_stream(seq_line);
+		std::string token;
+		while (std::getline(seq_stream, token, '-')) {
+			if (!token.empty()) {
+				sequence.push_back(std::stoi(token));
+			}
+		}
+
+		// Print sequence for debug
+		std::cout << "Sequence:";
+		for (int node : sequence) std::cout << " " << node;
+		std::cout << "\n";
+		
+		route_ints[i] = sequence;
+	}	
+	
+	for (int i = 0; i < nb_routes; i++)
+	{
+		std::vector<Node*> path; path.reserve( (int)route_ints[i].size() );
+		for(int k=0;k<(int)route_ints[i].size();k++)
+		{
+			Node * n = pr.GetNode( route_ints[i][k] ); 
+			path.emplace_back( n );
+		}
+			
+		sol.MakePath(i,path);
+	}
+
 }

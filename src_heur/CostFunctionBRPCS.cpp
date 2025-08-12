@@ -37,34 +37,44 @@ double CostFunctionBRPCS::GetCost(Sol & s,Driver * d)
 		prev = next;
 	}
 	
-	if(d1 > Parameters::MaxRouteDistance()) // Tighten this to have ~ 20 routes
+	if(d1 > Parameters::MaxRouteDistance()) // Tighten this to have ~ 20 routes -> current if 100 km
 		return INF_ROUTE_COST;
 	
 	double cost = INF_ROUTE_COST;
-	double rec; 	
+	double rec = INF_ROUTE_COST; 	
 	bool has_zero_rec = true;
 	if(init_q > Q || init_q < -Q || init_qe > Q || init_qe < -Q) has_zero_rec = false;
 	if(init_q+init_qe > Q || init_q+init_qe < -Q) has_zero_rec = false; 
 	
-	if(!Parameters::GetCostPolicy()) // Continue-to-next
+	if(Parameters::GetCostPolicy() == CN) // Continue-to-next
 	{
 		if(!RouteFeasibility::EndLoadHybrid(path,Q,false))
 			return INF_ROUTE_COST;	
 		 
-		if(has_zero_rec) 
-			has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false, init_q, init_qe);
+		 if(has_zero_rec && Parameters::GetBSSType() == CS){
+			 has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false, init_q, init_qe);
+		 } else if (has_zero_rec && Parameters::GetBSSType() == SW){
+			 has_zero_rec = RouteFeasibility::HasZeroHCBase(path, Q, false, init_q, init_qe);
+		 }
+			 
+		rec = has_zero_rec ? 0 : _r->CalculateContinueToNextMIP(path,Q,1);//Last parameter is the integer delta
 		
 		//has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false);
 		//has_zero_rec = RouteFeasibility::HasZeroHCUncharged(path, Q, false); // Slightly less general
-				
-		rec = has_zero_rec ? 0 : _r->CalculateContinueToNextMIP(path,Q,1);//Last parameter is the integer delta
+		
+		 // OG :
+		//if(has_zero_rec) 
+			//has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false, init_q, init_qe);						
+		//rec = has_zero_rec ? 0 : _r->CalculateContinueToNextMIP(path,Q,1);//Last parameter is the integer delta
 		
 	} else { // Restock
 		
-		if(has_zero_rec)
+		if(has_zero_rec && Parameters::GetBSSType() == CS){
 			has_zero_rec = RouteFeasibility::HasZeroHCUncharged(path, Q, false, init_q, init_qe);
-		//has_zero_rec = RouteFeasibility::HasZeroHCUncharged(path, Q, false);
-		
+		} else if (has_zero_rec && Parameters::GetBSSType() == SW){
+			has_zero_rec = RouteFeasibility::HasZeroHCBase(path, Q, false, init_q, init_qe);
+		}
+			
 		rec = has_zero_rec ? 0 :_r->CalculateRestockingTrips(path,Q,false);
 	}
 		
@@ -136,9 +146,15 @@ void CostFunctionBRPCS::Update(Sol & s, Driver * d)
         d->sum_W      += prev->maxWm;
         
         int combined_demand = prev->q + prev->q_e;
-        int slack    = combined_demand - (prev->h_i0 + prev->h_e_i0);
-        int surplus  = combined_demand + prev->maxWm;
-	
+		int surplus  = combined_demand + prev->maxWm;
+		
+		int slack = 0;
+		if(Parameters::GetBSSType() == CS){
+			slack = std::max(-Q,combined_demand - prev->h_i0 - prev->h_e_i0);
+		} else if (Parameters::GetBSSType() == SW){
+			slack = std::max(-Q,combined_demand - prev->h_i0 - prev->h_e_i0 - prev->h_u_i0);
+		}
+        
         lambda += slack;
         min_lambda = std::min(lambda, min_lambda);
         mu   += surplus;
@@ -170,7 +186,6 @@ void CostFunctionBRPCS::Update(Sol & s, Driver * d)
     d->curDistance = d1;
 
 	bool has_zero_rec = true;
-	bool is_continue = !Parameters::GetCostPolicy();
 	bool is_feasible = d->is_feasible;
 
 	bool within_capacity = 
@@ -179,22 +194,28 @@ void CostFunctionBRPCS::Update(Sol & s, Driver * d)
 		(d->sum_q + d->sum_q_e <= Q) &&
 		(d->sum_q + d->sum_q_e >= -Q);
 
-	if (is_continue) {
+	if (Parameters::GetCostPolicy() == CN) { // Continue-to-next
 		if (!is_feasible || !within_capacity)
 			has_zero_rec = false;
 		
-		if (has_zero_rec) 
+		if (has_zero_rec && Parameters::GetBSSType() == CS){
 			has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false, d->sum_q, d->sum_q_e);
+		} else if (has_zero_rec && Parameters::GetBSSType() == SW){
+			has_zero_rec = RouteFeasibility::HasZeroHCBase(path, Q, false, d->sum_q, d->sum_q_e);
+		}
 		
 		d->curRecourse = is_feasible
 			? (has_zero_rec ? 0 : _r->CalculateContinueToNextMIP(path, Q, 1))
 			: INF_ROUTE_COST;
-	} else {
+	} else if (Parameters::GetCostPolicy() == RT){ // Restock
 		if (!within_capacity)
 			has_zero_rec = false;
 		
-		if (has_zero_rec)
+		if (has_zero_rec && Parameters::GetBSSType() == CS){
 			has_zero_rec = RouteFeasibility::HasZeroHCUncharged(path, Q, false, d->sum_q, d->sum_q_e);
+		} else if (has_zero_rec && Parameters::GetBSSType() == SW){
+			has_zero_rec = RouteFeasibility::HasZeroHCBase(path, Q, false, d->sum_q, d->sum_q_e);
+		}
 	
 		d->curRecourse = has_zero_rec ? 0 : _r->CalculateRestockingTrips(path, Q, 1);
 	}
@@ -221,7 +242,13 @@ void CostFunctionBRPCS::Update(Sol & s, Driver * d)
 
         int combined_demand = n->q + n->q_e;
         int gamma_i = std::min(Q, combined_demand + n->maxWm);
-        int zeta_i = std::max(-Q, combined_demand - (n->h_i0 + n->h_e_i0));
+		
+		int zeta_i = 0;
+		if(Parameters::GetBSSType() == CS){
+			zeta_i = std::max(-Q, combined_demand - (n->h_i0 + n->h_e_i0));
+		} else if(Parameters::GetBSSType() == SW){
+			zeta_i = std::max(-Q, combined_demand - (n->h_i0 + n->h_e_i0 + n->h_u_i0));
+		}
 
         gamma -= gamma_i;
         min_gamma = std::min(gamma, min_gamma);

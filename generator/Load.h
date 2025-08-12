@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <map>
 #include "RandomNumbers.h"
+#include <string>
 
 void UpdateQuantities(std::string & city_name, const nlohmann::json & station,
 						int & sum_init_q, int & sum_init_qe, int & last_init_q, int & last_init_qe)
@@ -81,7 +82,7 @@ void LoadJson(std::string& city_name,
               std::string& last_station_information,
               std::vector<std::string>& station_status_file_names,
               std::vector<Station>& stations,
-              RandomNumbers& rn)
+              RandomNumbers& rn, std::string & bss_type)
 {
     std::ifstream file(last_station_information);
     if (!file.is_open()) {
@@ -120,9 +121,13 @@ void LoadJson(std::string& city_name,
             charges = item["is_charging_station"];
         else if (item.contains("is_charging") && city_name != "mexicocity" && city_name != "barcelona" && city_name != "saopaulo" && city_name != "santiago")
             charges = item["is_charging"];
-        else
-            charges = (u_vec[cntr] <= 0.2);
-
+        else if( bss_type == "CS")
+			charges = (u_vec[cntr] <= 0.2);
+		else if( bss_type == "SW" )
+			charges = false;
+		//else
+            //charges = (u_vec[cntr] <= 0.2); //Update made when modifying for SW bss types.
+			
         stations_temp.emplace_back(cntr, cap, charges, bss_station_id, name, lat, lon);
 		stations_temp[stations_temp.size()-1].Show(); //getchar();
         cntr++;
@@ -211,7 +216,7 @@ void LoadJson(std::string& city_name,
 
 
 void LoadJsonSlow(std::string & city_name, std::string & last_station_information, std::vector<std::string> & station_status_file_names, 
-              std::vector<Station> & stations, RandomNumbers & rn)
+              std::vector<Station> & stations, RandomNumbers & rn, std::string & bss_type )
 {
     std::ifstream file(last_station_information);
     if(!file.is_open())
@@ -247,13 +252,22 @@ void LoadJsonSlow(std::string & city_name, std::string & last_station_informatio
 			charges = item["is_charging_station"];
 		else if(item.contains("is_charging"))
 			charges = item["is_charging"];
-		else // !item.contains("is_charging_station") && !item.contains("is_charging")
+		else if( bss_type == "CS" )
 		{
 			if(u_vec[cntr] <= 0.2)
 				charges = true;
 			else 
 				charges = false;
-		}
+		} else if (bss_type == "SW")
+			charges == false;
+			
+		//else // !item.contains("is_charging_station") && !item.contains("is_charging")
+		//{
+			//if(u_vec[cntr] <= 0.2)
+			//	charges = true;
+			//else 
+			//	charges = false;
+		//}
 
         stations_temp.emplace_back(cntr, cap, charges, bss_station_id, name, lat, lon);
         stations_temp[stations_temp.size()-1].Show(); //getchar();

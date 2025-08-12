@@ -51,7 +51,7 @@ class ALNS
 			_acceptation_gap = 99999999;
 			_max_time = 99999999;
 			_chrono_check_iter = 1000;
-			_recourse_policy=1;
+			_recourse_policy = CN;
 		}
 
 		void Optimize(Sol & s);

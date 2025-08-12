@@ -9,7 +9,7 @@
 #include "DriverBRPCS.h"
 #include <ctime> //clock_t
 #include "RouteFeasibilityBRPCS.h"
-#include <set>
+#include "AlnsOutils.h"
 
 class SeqInsertBRPCS : public InsertOperator
 {
@@ -17,8 +17,6 @@ class SeqInsertBRPCS : public InsertOperator
 		SeqInsertBRPCS(InsRmvMethodBRPCS & insrmv, RouteFeasibility * r)  
 			: _insrmv(insrmv), _r(r) {}  
 
-		void FillPathWithPos(Sol & s, Driver* d, Node* n, int pos);
-		bool Is_feasible(Node* prev, Node* next, int lambda, int mu, int Q);
 		void Insert(Sol & s, bool show);
 		void FillMoveVec(Sol & s, Driver * d, Node * n, std::vector<Move> & move_vec);	
 
@@ -27,7 +25,6 @@ class SeqInsertBRPCS : public InsertOperator
 		std::vector<Node*> path;
 		RouteFeasibility * _r;
 		
-		std::set<int> attempted_moves;
 };
 
 

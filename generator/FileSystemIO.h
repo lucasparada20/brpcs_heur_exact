@@ -36,8 +36,8 @@ void LoadFileNames(const std::string & city,
                    std::vector<std::string> & station_information_file_names,
                    std::vector<std::string> & station_status_file_names)
 {
-    station_information_file_names.reserve(60);
-    station_status_file_names.reserve(60);
+    station_information_file_names.reserve(90);
+    station_status_file_names.reserve(90);
 
     std::filesystem::path dir_path = "data_brpcs/" + city;
 
@@ -57,7 +57,32 @@ void LoadFileNames(const std::string & city,
                 station_information_file_names.push_back(path_str);
         }
     }
-
+	
+	for(size_t i=0;i<station_information_file_names.size();)
+	{
+		std::string & a = station_information_file_names[i];
+		size_t pos_year = a.find("2025");
+		int month = std::stoi(a.substr(pos_year + 4, 2));
+		int day = std::stoi(a.substr(pos_year+6,2));
+		
+		if (month < 5 || ( month == 7 && day > 4 )) 
+			station_information_file_names.erase(station_information_file_names.begin()+i);
+		else 
+			i++;
+	}
+	for(size_t i=0;i<station_status_file_names.size();)
+	{
+		std::string & a = station_status_file_names[i];
+		size_t pos_year = a.find("2025");
+		int month = std::stoi(a.substr(pos_year + 4, 2));
+		int day = std::stoi(a.substr(pos_year+6,2));
+		
+		if (month < 5 || ( month == 7 && day > 4 )) 
+			station_status_file_names.erase(station_status_file_names.begin()+i);
+		else 
+			i++;
+	}	
+	
     std::sort(station_information_file_names.begin(), station_information_file_names.end(), DateComparator());
     std::sort(station_status_file_names.begin(), station_status_file_names.end(), DateComparator());
 }

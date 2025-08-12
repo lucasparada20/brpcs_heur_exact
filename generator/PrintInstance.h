@@ -4,11 +4,12 @@
 #include "Station.h"
 #include <string>
 #include <stdio.h>
+#include <cstring>
 
-void PrintInstance(std::vector<Station> & stations, std::string & city_name, double uncharged_percentage)
+void PrintInstance(std::vector<Station> & stations, std::string & city_name, double uncharged_percentage, std::string & bss_type)
 {
     int uncharged_int = 100*uncharged_percentage;
-	std::string filename = city_name + std::to_string((int)stations.size()) + "_" +std::to_string(uncharged_int) + ".txt"; //with integer to string you need std::to_string() ...
+	std::string filename = city_name + std::to_string((int)stations.size()) + "_" +std::to_string(uncharged_int) + "_" + bss_type + ".txt"; //with integer to string you need std::to_string() ...
     FILE* output_file = fopen(filename.c_str(), "w");
     if (!output_file) {
         std::cerr << "Error: Unable to open the single station output file." << std::endl;
@@ -26,13 +27,14 @@ void PrintInstance(std::vector<Station> & stations, std::string & city_name, dou
 			sumAbsReg += std::abs( s.initRegular - s.tgtRegular); sumAbsElec += std::abs(s.initElectric -  s.tgtElectric);
 			if(s.charges) charges++;
 		}
-    fprintf(output_file, "%d %d %d %d %d %d %d %d %d %d\n", 
-			cntr, charges, sumCap, sumInitReg, sumInitElec, sumInitU, sumqReg, sumqElec, sumAbsReg, sumAbsElec);
-
+		
+	fprintf(output_file, "%s %d %d %d %d %d %d %d %d %d %d\n", 
+				bss_type.c_str(), cntr, charges, sumCap, sumInitReg, sumInitElec, sumInitU, sumqReg, sumqElec, sumAbsReg, sumAbsElec);			
+				
     for (const Station& s : stations)
 	{
 		if(s.name == "depot")
-			fprintf(output_file, "%d %.6lf %.6lf\n",s.cap,s.lat,s.lon);
+			fprintf(output_file, "0 %.6lf %.6lf\n",s.lat,s.lon);
 		else if( s.tgtElectric > -1 && s.tgtRegular > -1  )
 		{
 			fprintf(output_file,"%d %d %d %d %d %d %d %.6lf %.6lf\n"

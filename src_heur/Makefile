@@ -4,7 +4,7 @@ CXX = g++
 CXXFLAGS ?= -std=c++11 -Wall
 
 # CPLEX directory
-CPLEX_DIR = /some/path/to/Cplex
+CPLEX_DIR = /home/lucasparada20/CPLEX_Studio2211
 
 # Include and lib paths
 CPLEX_INC = -I$(CPLEX_DIR)/cplex/include -I$(CPLEX_DIR)/concert/include
@@ -15,7 +15,7 @@ CPLEX_LIBS = -lilocplex -lconcert -lcplex -lm -lpthread -ldl
 # Sources and objects
 SOURCES = AlnsBRPCS.cpp main_heur_brpcs.cpp RouteFeasibilityBRPCS.cpp \
           Parameters.cpp LoadBRPCS.cpp CostFunctionBRPCS.cpp \
-          InsRmvMethodBRPCS.cpp SteepestDescentInsertionBRPCS.cpp \
+          AlnsOutils.cpp InsRmvMethodBRPCS.cpp SteepestDescentInsertionBRPCS.cpp \
           SequentialInsertionBRPCS.cpp RelatednessRemoveBRPCS.cpp \
           RemoveRandomBRPCS.cpp BestSolutionList.cpp primes.c
 
@@ -52,7 +52,7 @@ check_dirs:
 
 # Debug rule
 debug: clean
-	$(MAKE) all CXXFLAGS="-Wall -ggdb3 -fsanitize=address -fsanitize=undefined"
+	$(MAKE) all CXXFLAGS="-std=c++11 -Wall -O0 -ggdb3 -fsanitize=address -fsanitize=undefined"
 
 # Usage message
 usage:

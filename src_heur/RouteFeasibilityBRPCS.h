@@ -1,6 +1,8 @@
 #ifndef ROUTE_FEASIBILITY_BRPCS
 #define ROUTE_FEASIBILITY_BRPCS
 
+#include <cstring> // For strcmp
+
 #include "ProblemDefinition.h"
 #include "PathHashTable.h"
 #include <ilcplex/ilocplex.h>
@@ -10,7 +12,7 @@
 
 class RouteFeasibility {
 public:	
-	RouteFeasibility(Prob * _prob) : prob(_prob), _show(false), visited_paths(0) {
+	RouteFeasibility(Prob * _prob) : prob(_prob), _show(false), visited_paths_CN(0), visited_paths_RT(0) {
 		_paths_map_continue = new PathHashTable<int>(3000000);
 		_paths_map_restocking = new PathHashTable<double>(3000000);
 	};
@@ -25,9 +27,11 @@ public:
 	double CalculateRestockingTripsNonLinear(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	double CalculateRestockingTripsBigM(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	double CalculateRestockingTripsLM(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
+	double CalculateRestockingTripsSW(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	
 	int CalculateContinueToNextMIP(std::vector<Node*>& nodes, int Q, int delta);
 	int CalculateContinueToNextMIP(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
+	int CalculateContinueToNextSW(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	
 	int CalculateContinueToNextDP(std::vector<Node*>& nodes, int Q, int delta);
 	bool CheckSummedInequality(Node* node, int x, int e, int W, int z_k);
@@ -44,6 +48,8 @@ public:
 	static bool HasZeroHCUnchargedViolations(std::vector<Node*>& nodes, int Q, bool show, int init_q, int init_qe);
 	static bool HasZeroHCUncharged(std::vector<Node*>& nodes, int Q, bool show);
 	static bool HasZeroHCUncharged(std::vector<Node*>& nodes, int Q, bool show, int init_q, int init_qe);
+	static bool HasZeroHCBase(std::vector<Node*>& nodes, int Q, bool show);
+	static bool HasZeroHCBase(std::vector<Node*>& nodes, int Q, bool show, int init_q, int init_qe);
 	static bool EndLoadHybrid(std::vector<Node*>& nodes, int Q, bool show);
  	
 	// Switch to debug
@@ -72,7 +78,8 @@ private:
 	PathHashTable<int> * _paths_map_continue; //set of paths that have been visited
 	PathHashTable<double> * _paths_map_restocking; //set of paths that have been visited
 	std::vector<int> path_ids;	
-	int visited_paths;
+	int visited_paths_CN;
+	int visited_paths_RT;
 };
 
 #endif

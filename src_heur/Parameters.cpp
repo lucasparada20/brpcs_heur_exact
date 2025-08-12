@@ -12,16 +12,19 @@
 #include <algorithm>
 //#include <filesystem>
 
-bool Parameters::cost_policy = false;
+int Parameters::cost_policy = CN;
+int Parameters::bss_type = CS;
 std::string Parameters::instance_file;
 std::string Parameters::re_file_name;
 std::string Parameters::output_file_name;
 std::string Parameters::city_name;
+std::string Parameters::construction_heuristic;
+std::string Parameters::initial_solution_file;
 int Parameters::nb_stations=0;
 int Parameters::u_value=0;
 int Parameters::add_depot_stations=0;
-int Parameters::max_route_distance=0;
-int Parameters::recourse_policy=1;
+double Parameters::max_route_distance=0.0;
+int Parameters::recourse_policy=0;
 int Parameters::delta = 1;
 int Parameters::HardQ = 100;
 
@@ -137,16 +140,13 @@ void Parameters::Read(int arg, char ** argv)
 			instance_file = std::string(second);
 			SetCityName(instance_file.c_str());
 		}
-		else if(strcmp(first,"delta")==0)
+		else if(strcmp(first,"construction_heuristic")==0)
 		{
-			delta = std::atoi( second );
-			SetDelta( delta );
-			//printf("Parsed delta:%d value:%d\n",delta,GetDelta());
+			construction_heuristic = std::string(second);
 		}
-		else if(strcmp(first,"HardQ")==0)
+		else if(strcmp(first,"initial_solution_file")==0)
 		{
-			HardQ = std::atoi( second );
-			SetHardQ( HardQ );
+			initial_solution_file = std::string(second);
 		}
 	}
 }

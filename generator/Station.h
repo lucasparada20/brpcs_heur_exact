@@ -67,7 +67,7 @@ struct Station {
 				  << " uElec:" << uElectric
                   << " tgtElec:" << tgtElectric 
 				  << " bss_station_id:" << bss_station_id
-                  //<< " lat:" << lat << " lon:" << lon 
+                  << " lat:" << lat << " lon:" << lon 
                   << " cap:" << cap << " name:" << name 
                   << std::endl;
     }

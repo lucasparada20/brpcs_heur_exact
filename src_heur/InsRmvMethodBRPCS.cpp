@@ -10,8 +10,8 @@ void InsRmvMethodBRPCS::FillInsertionList(Sol & s, std::vector<Node*> & list)
 	for(int i=0;i<s.GetUnassignedCount();i++)
 		list.push_back(s.GetUnassigned(i));
 }
-
-void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
+// This method is deprecated.
+/*void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
 {
 	//s.Update() is called right before this function
 	//printf("InsertCost n:%d d:%d\n", n->id, d->id);
@@ -34,14 +34,14 @@ void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
 		path.push_back(next);
 		prev = next;
 	}
-	/*if((int)path.size()>3)
-	{
-		printf("Path: ");
-		for(size_t i=0;i<path.size();i++)
-			printf("%d-", path[i]->id);
-		printf("\n");
-		getchar();
-	}*/
+	//if((int)path.size()>3)
+	//{
+	//	printf("Path: ");
+	//	for(size_t i=0;i<path.size();i++)
+	//		printf("%d-", path[i]->id);
+	//	printf("\n");
+	//	getchar();
+	//}
 
 
 	//INSERT COST FOR THE SBRP
@@ -57,8 +57,6 @@ void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
 	int combined_demand = n->q + n->q_e;
 	int lambda_pos = std::max(-Q, combined_demand - n->h_i0 - n->h_e_i0);
 	int mu_pos = std::min(Q, combined_demand + n->maxWm);
-	//int gamma_pos = std::min(Q, combined_demand + n->maxWm);
-	//int zeta_pos = std::max(-Q, combined_demand - n->h_i0 - n->h_e_i0);
 	
 	int pos = 0;
 	prev = s.GetNode( d->StartNodeID );
@@ -88,20 +86,13 @@ void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
 		//1.- Check if the route is feasible up to prev. This check is O(1)
 		if( prev->type ==NODE_TYPE_CUSTOMER && prev->is_end_feasible == false)
 		{
-			/*if(ShouldBeFeasible)
-			{
-				printf("Something wrong....\n"); exit(1);
-			}*/
 			prev = next; pos++; continue;
 		}
+		
 		//2.- Check if the route is BACKWARDS feasible from the next node after the insertion (Compute StartLoadWindow for path Insert+1-....-d). This check is O(n).
 		//IMPROVED: In the Update() function the lb, ubs were compute for both forward and backward feasibility -> The check becomes O(1).
 		if(path_after_insertion[0]->type == NODE_TYPE_CUSTOMER && path_after_insertion[0]->is_start_feasible == false)
 		{	
-			/*if(ShouldBeFeasible)
-			{
-				printf("Something wrong....\n"); exit(1);
-			}*/
 			prev = next; pos++; continue;
 		}		
 		
@@ -118,10 +109,6 @@ void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
 		//3.- Check if the insertion is feasible. This check is O(1)
 		if(!(lb3 <= ub4 && lb4 <= ub3))
 		{
-			/*if(ShouldBeFeasible)
-			{
-				printf("Something wrong....\n"); exit(1);
-			}*/
 			prev = next; pos++; continue;
 		}
 		
@@ -129,6 +116,7 @@ void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
 		//if( newcost < mo.DeltaCost && RouteFeasibility::EndLoadHybrid(path,Q,false)) //Without constant time check, this line is necessary
 		{
 			int rec = _r->CalculateContinueToNextMIP(path,Q,1);
+			//printf("InsRmvMethod : Called cost from CN ...\n");
 			if(rec > 9999.0)
 			{
 				prev = next; pos++; continue;
@@ -155,7 +143,7 @@ void InsRmvMethodBRPCS::InsertCost(Sol & s, Node * n, Driver * d, Move & mo)
 		pos++;
 	}
 		
-}
+}*/
 
 void InsRmvMethodBRPCS::ApplyInsertMove(Sol & s, Move & m)
 {

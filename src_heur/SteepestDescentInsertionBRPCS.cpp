@@ -33,9 +33,16 @@ void SteepestDescentInsertionBRPCS::FindMove(Sol & s, Move& m, Driver* d, Node* 
 
     // Combined demand calculations
     int combined_demand = n->q + n->q_e;
-    int lambda_pos = std::max(-Q, combined_demand - n->h_i0 - n->h_e_i0);
-    int mu_pos = std::min(Q, combined_demand + n->maxWm);
-
+	int mu_pos = std::min(Q, combined_demand + n->maxWm);
+	
+	int lambda_pos = 0;
+	if(Parameters::GetBSSType() == CS){
+		lambda_pos = std::max(-Q, combined_demand - n->h_i0 - n->h_e_i0);
+	}
+	else if (Parameters::GetBSSType() == SW){
+		lambda_pos = std::max(-Q, combined_demand - n->h_i0 - n->h_e_i0 - n->h_u_i0);
+	}
+    
     int pos = 0;
     prev = s.GetNode(d->StartNodeID);
 
@@ -75,8 +82,13 @@ void SteepestDescentInsertionBRPCS::FindMove(Sol & s, Move& m, Driver* d, Node* 
             pos++; 
             continue;
         }
-
-		bool HasZeroRec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false);
+		
+		bool HasZeroRec = false;
+		if(Parameters::GetBSSType() == CS){
+			HasZeroRec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false);
+		} else if (Parameters::GetBSSType() == CS){
+			HasZeroRec = RouteFeasibility::HasZeroHCBase(path, Q, false);
+		}
         int rec = HasZeroRec ? 0 : _r->CalculateContinueToNextMIP(path, Q, 1);
 
         if (rec > 9999) {

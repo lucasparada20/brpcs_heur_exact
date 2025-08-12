@@ -8,6 +8,8 @@
 #include "Parameters.h"
 #include "RouteFeasibilityBRPCS.h"
 
+#include <cstring> // For strcmp
+
 class Sol;
 
 class CostFunctionBRPCS

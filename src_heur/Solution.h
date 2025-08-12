@@ -68,11 +68,21 @@ class Sol
 
 		void InsertAfter(Node * n, Node * prev)
 		{
+			// Print the IDs for debugging
+			//printf("Assigning node %d to driver %d\n", 
+			//		n==NULL?-1:n->id, AssignTo[n->id]==NULL?-1:AssignTo[n->id]->id);
+			//printf("Node %d was previously assigned to driver %d\n", 
+			//		prev==NULL?-1:prev->id, AssignTo[prev->id]==NULL?-1:AssignTo[prev->id]->id);
+			
+			if(AssignTo[prev->id]==NULL){
+				printf("Node %d was previously assigned to driver %d\n", 
+					prev==NULL?-1:prev->id, AssignTo[prev->id]==NULL?-1:AssignTo[prev->id]->id);
+				printf("Most likely scenario is that you tried inserting a node following a prev node that was not priorly inserted.\n");
+				exit(1);
+			} 
+			
 			RoutesLength[ AssignTo[prev->id]->id ]++;
 			AssignTo[n->id] = AssignTo[prev->id];
-			// Print the IDs for debugging
-			//printf("Assigning node %d to driver %d\n", n->id, AssignTo[n->id]->id);
-			//printf("Node %d was previously assigned to driver %d\n", prev->id, AssignTo[prev->id]->id);
 			Next[n->id] = Next[	prev->id ];
 			Prev[n->id] = prev;
 			if(Next[prev->id] != NULL)
@@ -438,9 +448,16 @@ class Sol
 				Node * next = Next[prev->id];
 				//printf("%d-",next->no);
 				int combined_demand = next->q + next->q_e;
-				int lambda_i = std::max(-Q, combined_demand - next->h_e_i0 - next->h_i0);
 				int mu_i = std::min(Q, combined_demand + next->maxWm);
 				
+				int lambda_i = 0;
+				if(Parameters::GetBSSType() == CS){
+					lambda_i = std::max(-Q, combined_demand - next->h_e_i0 - next->h_i0);
+				} else if(Parameters::GetBSSType() == SW){
+					lambda_i = std::max(-Q, combined_demand - next->h_e_i0 - next->h_i0 - next->h_u_i0);
+				}
+				
+
 				// End load feasibility
 				sumLambda += lambda_i;
 				minLambda = std::min(sumLambda, minLambda);

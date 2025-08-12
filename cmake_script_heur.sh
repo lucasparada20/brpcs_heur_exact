@@ -33,5 +33,5 @@ cmake -G "Unix Makefiles" \
 
 # Build using all available cores
 echo "Building using $(nproc) cores"
-make -j$(nproc)
-#make
+#make -j$(nproc)
+make

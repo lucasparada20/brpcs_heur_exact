@@ -6,7 +6,7 @@
 
 #include <vector>
 #include <algorithm>
-
+  
 class RemoveRandomBRPCS : public RemoveOperator
 {
 	public:

@@ -97,34 +97,56 @@ int main(int argc, char ** argv)
 	Sol sol(&pr,&cost_func);
 	sol.PutAllNodesToUnassigned();
 	
+	load.LoadSolution(pr,sol,Parameters::GetInitialSolutionFileName());
+	printf("Loaded the following solution:\n");
+	sol.Update();
+	sol.Show();
+	
 	InsRmvMethodBRPCS method(&r,&pr);
 	SteepestDescentInsertionBRPCS steep_seq(method,&r,0.5);
 	SeqInsertBRPCS seq(method,&r);
-	RegretInsertBRPCS regret_2(&pr,method,&r,0.5); //regret_k initialized with 2
-	RegretInsertBRPCS regret_n(&pr,method,&r,0.5);	
-	regret_n.SetK(5);
+	RegretInsertBRPCS regret_2(&pr,method,&r); //regret_k initialized with 2
+	RegretInsertBRPCS regret_3(&pr,method,&r); regret_3.SetK(3);
+	RegretInsertBRPCS regret_4(&pr,method,&r); regret_4.SetK(4);
+	RegretInsertBRPCS regret_n(&pr,method,&r);	regret_n.SetK(pr.GetDriverCount());
+	
 	
 	RemoveRandomBRPCS random_remove;
 	RelatednessRemoveBRPCS related_remove(pr.GetDistances());
 
 	ALNS alns;
-	alns.AddInsertOperator(&seq);
-	alns.AddInsertOperator(&regret_2);
+	
+	printf("Construction heuristic for Alns will be:%s\n",Parameters::GetConstructionHeuristic());
+	
+	if(strcmp(Parameters::GetConstructionHeuristic(),"SEQ")==0)
+		alns.AddInsertOperator(&seq);
+	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG2")==0)
+		alns.AddInsertOperator(&regret_2);
+	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG3")==0)
+		alns.AddInsertOperator(&regret_3);
+	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG4")==0)
+		alns.AddInsertOperator(&regret_4);
+	else if(strcmp(Parameters::GetConstructionHeuristic(),"REGn")==0)
+		alns.AddInsertOperator(&regret_n);
+	else if(strcmp(Parameters::GetConstructionHeuristic(),"ALL")==0)
+	{
+		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_2); alns.AddInsertOperator(&regret_3);
+		//alns.AddInsertOperator(&regret_4); //alns.AddInsertOperator(&regret_n);
+	} else {
+		printf("No construction heuristic given. Phil Collins (1989). Exiting ...\n"); exit(1);
+	}
+	
 	alns.AddRemoveOperator(&random_remove);
 	alns.AddRemoveOperator(&related_remove);
 
-	//Initially, cost_policy set to false in Parameters (Continue-To-Next)	
-	steep_seq.Insert(sol,true);	//steep_seq is faster but weaker than greedy insertion
 
-	printf("Initial solution cost:%.1lf unassigneds:%d\n",sol.GetCost(),sol.GetUnassignedCount()); 
-	//Alns parameters
 	alns.SetAcceptationGap(1.1);
 	alns.SetTemperatureIterInit(0);
 	alns.SetTemperature(0.9995);
-	alns.SetIterationCount(50000);//Remember to set a lot of iterations
+	alns.SetIterationCount(1000);//Remember to set a lot of iterations
 	
 	// Done in Parameters at the beginning, unless you want to restock
-	Parameters::SetCostPolicy(CN); // Use Continue-To-Next trips policy
+	Parameters::SetCostPolicy(RT); // Use Restocking Trips policy
 	printf("Cost policy:%s\n",Parameters::GetCostPolicy() == RT ? "Restock" : "Continue-To-Next");
 	alns.SetCostPolicy( Parameters::GetCostPolicy() ); // Temporarily not used
 
@@ -149,15 +171,30 @@ int main(int argc, char ** argv)
 	printf("%s policy Heur:%.3lf dist:%.3lf rec:%.3lf drv:%d time:%.3lf\n", 
 			Parameters::GetCostPolicy() ? "Restocking Trips" : "Continue-To-Next", heur_ub, heur_ub_distance, heur_ub_recourse,heur_nb_drivers, elapsed_time);
 	
+	std::string cons_heur_str;
+	if(strcmp(Parameters::GetConstructionHeuristic(),"SEQ")==0)
+		cons_heur_str = "SEQ";
+	if(strcmp(Parameters::GetConstructionHeuristic(),"REG2")==0)
+		cons_heur_str = "REG2";
+	if(strcmp(Parameters::GetConstructionHeuristic(),"REG3")==0)
+		cons_heur_str = "REG3";
+	if(strcmp(Parameters::GetConstructionHeuristic(),"REG4")==0)
+		cons_heur_str = "REG4";
+	if(strcmp(Parameters::GetConstructionHeuristic(),"REGn")==0)
+		cons_heur_str = "REGn";
+	if(strcmp(Parameters::GetConstructionHeuristic(),"ALL")==0)
+		cons_heur_str = "ALL";
+	
 	std::string bss_type_str = Parameters::GetBSSType() == CS ? "_CS" : "_SW";
-	std::string re_continue_file_name = std::string("results/re_CN_") + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";
-	std::ofstream re_file_CN(re_continue_file_name);
-	if(!re_file_CN.is_open())
+	std::string re_continue_file_name = std::string("results/re_RT_") + cons_heur_str + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";
+	std::ofstream re_file_RT(re_continue_file_name);
+	if(!re_file_RT.is_open())
 	{
 		std::cout << re_continue_file_name << std::endl;
-		std::cout << "Could not open CN file. Exiting ..." << std::endl; 
+		std::cout << "Could not open RT file. Exiting ..." << std::endl; 
 		exit(1);
 	}
+	
 	int total_charges = 0; int total_init_reg = 0; int total_init_elec = 0; int total_init_u = 0;
 	for(int i=0;i<pr.GetCustomerCount();i++)
 	{
@@ -166,74 +203,50 @@ int main(int argc, char ** argv)
 		if(n->is_chargeable)
 			total_charges++;
 	}
-	re_file_CN << std::string(Parameters::GetCityName()) << "," << Parameters::GetNbStations() << "," << Parameters::GetUValue() << "," << "CN" << "," << total_init_reg << "," << total_init_elec << "," << total_init_u << "," << heur_ub << "," << heur_ub_distance << "," << heur_ub_recourse << "," << heur_nb_drivers << ",";
-	re_file_CN << std::fixed << std::setprecision(2) << elapsed_time << ";\n";
-	printf("ReCN file written to:%s\n",re_continue_file_name.c_str());
-	re_file_CN.close();
-
-
-	/* ====================== */
-	/* ==== RESTOCK RUN ===== */
+	re_file_RT << std::string(Parameters::GetCityName()) << "," << Parameters::GetNbStations() << "," << Parameters::GetUValue() << "," << "RT" << "," << total_init_reg << "," << total_init_elec << "," << total_init_u << "," << heur_ub << "," << heur_ub_distance << "," << heur_ub_recourse << "," << heur_nb_drivers << ",";
+	re_file_RT << std::fixed << std::setprecision(2) << elapsed_time << "\n";
+	printf("ReRT file written to:%s\n",re_continue_file_name.c_str());
+	re_file_RT.close();
 	
-	begin = clock();
+	//route file
+	std::string solution_file_name_str = std::string("results/solution_RT_") + cons_heur_str + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";	
+	std::ofstream solutionFile(solution_file_name_str);
 	
-	ALNS alns2;
-	alns2.AddInsertOperator( &seq );
-	alns2.AddRemoveOperator(&random_remove);
-	alns2.AddRemoveOperator(&related_remove);
-
-	//Alns parameters
-	alns2.SetAcceptationGap(1.1);
-	alns2.SetTemperatureIterInit(0);
-	alns2.SetTemperature(0.9995);
-	alns2.SetIterationCount(100);//Remember to set a lot of iterations
-	
-	Parameters::SetCostPolicy(RT); // Use restocking trips policy
-	printf("Cost policy:%s\n",Parameters::GetCostPolicy() == RT ? "Restock" : "Continue-To-Next");
-	alns2.SetCostPolicy( Parameters::GetCostPolicy() ); 
-	
-	begin = clock();
-	alns2.Optimize(sol);
-	sol.Update();
-	
-	nb_unassigned = 0;
-	for(int i=0;i<pr.GetCustomerCount();i++)
+	if(!solutionFile.is_open())
 	{
-		Node * n = pr.GetCustomer(i);
-		if(sol.IsUnassigned(n))
-			nb_unassigned++;
-	}
-	sol.Show();
-	printf("Manual count of nb_unassigned:%d\n",nb_unassigned);
-	
-	heur_ub_distance = sol.GetTotalDistances();
-	heur_ub_recourse = sol.GetTotalRecourse();
-	heur_ub = heur_ub_distance + heur_ub_recourse;
-	heur_nb_drivers = sol.GetUsedDriverCount();
-	elapsed_time = (double)(clock() - begin)/CLOCKS_PER_SEC;
-	printf("%s policy Heur:%.3lf dist:%.3lf rec:%.3lf drv:%d time:%.3lf\n", 
-			Parameters::GetCostPolicy() ? "Restocking Trips" : "Continue-To-Next", heur_ub, heur_ub_distance, heur_ub_recourse,heur_nb_drivers, elapsed_time);	
-
-	std::string re_restock_file_name = std::string("results/re_RSTK_") + std::string(Parameters::GetCityName()) + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";
-	std::ofstream re_file_RSTK(re_restock_file_name);
-	if(!re_file_RSTK.is_open())
-	{
-		std::cout << re_restock_file_name << std::endl;
-		std::cout << "Could not open re RSTK file. Exiting ..." << std::endl; 
+		printf("Could not open solutionFile file:%s\n",solution_file_name_str); 
 		exit(1);
-	}
-	total_charges = 0; total_init_reg = 0; total_init_elec = 0; total_init_u = 0;
-	for(int i=0;i<pr.GetCustomerCount();i++)
+	}	
+	solutionFile << pr.GetCustomerCount() << "," << sol.GetUsedDriverCount() << "\n";	
+	int routeCounter=0;
+	for(int i=0;i<sol.GetDriverCount();i++)
 	{
-		Node * n = pr.GetCustomer(i);
-		total_init_reg += n->h_i0; total_init_elec += n->h_e_i0; total_init_u += n->h_u_i0;
-		if(n->is_chargeable)
-			total_charges++;
+		Driver * d = sol.GetDriver(i);
+		if(sol.GetRouteLength(i)<2) continue;
+
+		//distances.push_back(d->curDistance);
+		
+		Node * curr = sol.GetNode( d->StartNodeID );
+		Node * prev = sol.GetNode( d->StartNodeID ); // Keep track of the previous node
+		
+		solutionFile << routeCounter << "," << sol.GetRouteLength(d) << "," << d->sum_q << "," << d->sum_q_e << "," << d->curDistance << "\n";
+		while( curr != NULL)
+		{
+			solutionFile << curr->id << "-";
+			//printf("%d-",curr->id);
+			
+			curr = sol.Next[ curr->id ];
+			
+			prev = curr;
+		
+		}
+		//printf(" length:%d\n",sol.GetRouteLength(i));
+		solutionFile << "\n";
+		
+		routeCounter++;
 	}
-	re_file_RSTK << std::string(Parameters::GetCityName()) << "," << Parameters::GetNbStations() << "," << Parameters::GetUValue() << "," "RSTK" << "," << total_init_reg << "," << total_init_elec << "," << total_init_u << "," << heur_ub << "," << heur_ub_distance << "," << heur_ub_recourse << "," << heur_nb_drivers << ",";
-	re_file_RSTK << std::fixed << std::setprecision(2) << elapsed_time << ";\n";
-	printf("ReRSTK file written to:%s\n",re_restock_file_name.c_str());
-	re_file_RSTK.close();	
-	
+	printf("Solution file written to:%s\n",solution_file_name_str.c_str());
+	solutionFile.close();		
+
 	return 0;
 }

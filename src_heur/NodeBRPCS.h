@@ -68,6 +68,10 @@ public:
 	}
 
 	void Show() const {
+		if (this == nullptr) {
+			std::cout << "Node is null" << std::endl;
+			return;
+		}
 		std::cout << "Node Id:" << id                  
 				  //<< " s:" << s
 				  //<< " s_e:" << s_e
