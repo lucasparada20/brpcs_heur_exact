@@ -65,7 +65,7 @@ void LoadFileNames(const std::string & city,
 		int month = std::stoi(a.substr(pos_year + 4, 2));
 		int day = std::stoi(a.substr(pos_year+6,2));
 		
-		if (month < 5 || ( month == 7 && day > 4 )) 
+		if (month < 5 || ( month == 7 && day > 4 ) || month > 7) 
 			station_information_file_names.erase(station_information_file_names.begin()+i);
 		else 
 			i++;
@@ -77,7 +77,7 @@ void LoadFileNames(const std::string & city,
 		int month = std::stoi(a.substr(pos_year + 4, 2));
 		int day = std::stoi(a.substr(pos_year+6,2));
 		
-		if (month < 5 || ( month == 7 && day > 4 )) 
+		if (month < 5 || ( month == 7 && day > 4 ) || month > 7) 
 			station_status_file_names.erase(station_status_file_names.begin()+i);
 		else 
 			i++;
@@ -85,6 +85,10 @@ void LoadFileNames(const std::string & city,
 	
     std::sort(station_information_file_names.begin(), station_information_file_names.end(), DateComparator());
     std::sort(station_status_file_names.begin(), station_status_file_names.end(), DateComparator());
+	
+	//printf("Station information file names:\n");
+	//for(size_t i=0;i<station_information_file_names.size();i++)
+	//	std::cout <<  station_information_file_names[i] << std::endl;
 }
 
 #endif
