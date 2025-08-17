@@ -63,7 +63,14 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 			  << " sumqElec:" << sumqElec << " sumAbsReg:" << sumAbsReg << " sumAbsElec:" << sumAbsElec << std::endl;
 	
 	Parameters::SetBSSType((char*)bss_type.c_str());
-	printf("Bss type from load: %s\n",Parameters::GetBSSType() == 1? "CS" : "SW");
+	
+	if(Parameters::GetBSSType() == SW)
+		Parameters::SetMaxRouteDistance(100.0);
+	else Parameters::SetMaxRouteDistance(50.0);
+	
+	printf("Bss type from load: %s MaxDist: %.1lf\n",
+		Parameters::GetBSSType() == 1? "CS" : "SW",
+		Parameters::MaxRouteDistance());
 	
 	std::vector<Node> nodes;
 	nodes.reserve(stations+1);
@@ -136,9 +143,10 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 		//pr.GetCustomer(i)->Show();
 	
 	//Add the depots : two for each customer
-	int max_drivers = std::ceil( (stations-1)*0.1 );
-	//int max_drivers = stations-1;
-	for(int i = 0 ; i < std::min(max_drivers,50); i++)
+
+	//int max_drivers = Parameters::GetBSSType() == SW ? std::min(stations-1,50) : stations-1;
+	int max_drivers = std::min(stations-1,50);
+	for(int i = 0 ; i < max_drivers; i++)
 	{
 		Node dep1;
 		dep1.id = stations - 1 + i*2;
@@ -181,7 +189,9 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	
 	//printf("Distance Matrix:\n");
 	// Order is:  Nodes 0 ... dim-2 are customers. Node dime-1 is the first depot created
-	double max_distance = 0.0;
+	double max_distance = 0.0; int max_dist_n1 = -1; int max_dist_n2 = -1;
+	//double min_distance = 999999.0; int min_dist_n1 = -1; int min_dist_n2 = -1;
+	double max_depot_distance = 0.0; Node * node1; Node * node2;
 	for(int i=0;i<dim;i++)
 	{
       Node * n1 = pr.GetNode(i);
@@ -195,7 +205,15 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 		 
 		d[n1->distID][n2->distID] = i==j ? 0 : CalculateHarvesineDistance(n1,n2);
 		if(d[n1->distID][n2->distID] > max_distance)
-			max_distance = d[n1->distID][n2->distID];
+		{
+			max_distance = d[n1->distID][n2->distID]; 
+			max_dist_n1 = n1->id; max_dist_n2 = n2->id;
+		}
+		if(d[n1->distID][n2->distID] > max_depot_distance && ( n1->distID == 0 || n2->distID == 0 ))
+		{
+			max_depot_distance = d[n1->distID][n2->distID]; 
+			node1 = n1; node2 = n2;
+		}	
 		//printf("distID:%d distID:%d = %d\n",n1->distID,n2->distID,(int)d[n1->distID][n2->distID]);
 		//all_distances.push_back(d[n1->distID][n2->distID]); // Store the distance in the vector
 		if(d[n1->distID][n2->distID] > 100.0) // An intercity distance of >100km should be wrong!
@@ -210,7 +228,31 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
       }
 	  //getchar();
 	}
-	printf("Max distance in the matrix:%.1lf\n",max_distance);
+	pr.SetMaxtrices(d,dim);	
+
+	printf("Max distance in the matrix:%.2lf fromId:%d toId:%d\n",max_distance,max_dist_n1,max_dist_n2);
+	printf("Stations with depot round-trip distance > 100.0:\n");
+	Node* dp = pr.GetNode(0); // assuming distID=0 is the depot
+	int counter = 0;
+	for (int i = 0; i < stations-1; i++)
+	{
+		if (pr.GetNode(i)->type != NODE_TYPE_CUSTOMER) continue; 
+
+		double dist_to   = pr.GetDist(dp, pr.GetNode(i));
+		double dist_from = pr.GetDist(pr.GetNode(i), dp);
+		double total = dist_to + dist_from;
+
+		if (total > 100.0)
+		{
+			printf("Node ID: %d | dist_to: %.2lf | dist_from: %.2lf | total: %.2lf\n",
+				   pr.GetNode(i)->id, dist_to, dist_from, total);
+			pr.GetNode(i)->Show();
+			counter++;
+		}
+	}
+	printf("Total nodes infeasible due to max dist:%d\n",counter);
+	if(counter) exit(1);
+	
 	
 	/*for(int i=0; i<dim; i++)
 	{
@@ -221,7 +263,7 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 		printf("\n"); 
 	}*/
 	
-	pr.SetMaxtrices(d,dim);	
+
 	
 }
 
@@ -269,7 +311,7 @@ void LoadBRPCS::LoadSolution(Prob & pr, Sol & sol, char * filename)
 
 		std::cout << "Route " << route_id << " | Stations: " << nb_stations
 				  << " | SumQ: " << sum_q << " | SumQE: " << sum_qe
-				  << " | Dist: " << dist << "\n";
+				  << " | Dist: " << std::setprecision(2) << dist << "\n";
 
 		// --- Read sequence line ---
 		std::string seq_line;
@@ -297,6 +339,7 @@ void LoadBRPCS::LoadSolution(Prob & pr, Sol & sol, char * filename)
 	
 	for (int i = 0; i < nb_routes; i++)
 	{
+		if( (int)route_ints[i].size() == 2 ) continue; //empty routes
 		std::vector<Node*> path; path.reserve( (int)route_ints[i].size() );
 		for(int k=0;k<(int)route_ints[i].size();k++)
 		{

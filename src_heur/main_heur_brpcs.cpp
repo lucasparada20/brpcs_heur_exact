@@ -120,7 +120,8 @@ int main(int argc, char ** argv)
 	//Alns parameters
 	alns.SetAcceptationGap(1.1);
 	alns.SetTemperatureIterInit(0);
-	alns.SetTemperature(0.9995);
+	//alns.SetTemperature(0.9995); // For CN
+	//alns.SetTemperature(0.9980); //For RT
 	alns.SetIterationCount(50000);//Remember to set a lot of iterations
 	
 	// Done in Parameters at the beginning, unless you want to restock
@@ -185,7 +186,7 @@ int main(int argc, char ** argv)
 	//Alns parameters
 	alns2.SetAcceptationGap(1.1);
 	alns2.SetTemperatureIterInit(0);
-	alns2.SetTemperature(0.9995);
+	alns.SetTemperature(0.9980); //For RT
 	alns2.SetIterationCount(100);//Remember to set a lot of iterations
 	
 	Parameters::SetCostPolicy(RT); // Use restocking trips policy

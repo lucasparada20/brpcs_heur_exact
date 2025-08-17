@@ -37,8 +37,11 @@ void ALNS::Optimize(Sol & s, BestSolutionList * best_sol_list)
 		int nbMaxRmv = std::min(_max_nb_items, (int)(nbitems*_pourcentage_max));
 		int nbMinRmv = std::min(_min_nb_items, (int)(nbitems*_pourcentage_min));
 		int nbremove =  (nbMinRmv == nbMaxRmv)? nbMaxRmv : rand() % nbMaxRmv + nbMinRmv;
-		nbremove = std::min(std::max(nbremove, 5),nbitems);
-
+		//if(Parameters::GetCostPolicy() == CN)
+			nbremove = std::min(std::max(nbremove, 5),nbitems);
+		//else 
+			//nbremove = std::min(std::max(nbremove, 10),nbitems);
+		
 		alns_remove_operator * rmv = GetRemoveOperator();
 		alns_insert_operator * ins = GetInsertOperator();
 
@@ -50,7 +53,9 @@ void ALNS::Optimize(Sol & s, BestSolutionList * best_sol_list)
 		ins->opt->Insert(cur,false);
 
 		double newcost = cur.GetCost();
-
+		
+		double gap_best = (newcost - best_cost) / best_cost;
+		
 		//if((iter % 1000) == 0)// || best_cost > newcost)
 		{
 			double time = (double)(clock() -  begin) / CLOCKS_PER_SEC;
@@ -65,9 +70,13 @@ void ALNS::Optimize(Sol & s, BestSolutionList * best_sol_list)
 
 		if(best_sol_list != NULL && cur.IsFeasible())
 			best_sol_list->Add(cur);
-
-		double gap = (newcost - curr_cost) / curr_cost;
-		double gap_best = (newcost - best_cost) / best_cost;
+		
+		/*if(Parameters::GetCostPolicy() == RT && (nb_iter_without_new_best % 500) == 0 && nb_iter_without_new_best)
+		{
+			cur.MergeAllPaths();
+			newcost = cur.GetCost();
+			printf("Merging paths ... newcost:%.1lf\n",newcost);
+		}*/
 
 		if(best_cost > newcost && cur.IsFeasible())
 		{
@@ -85,9 +94,11 @@ void ALNS::Optimize(Sol & s, BestSolutionList * best_sol_list)
 			//double prob = mat_func_get_rand_double();
 			double acpprob = exp((curr_cost-newcost)/T);
 
-			//printf("prob:%lf acpprob:%lf T:%lf cost:%lf prevcost:%lf best:%lf\n", prob, acpprob, T, cost, costcur, bestcost);
+			
 			if(prob < acpprob && gap_best <= _acceptation_gap)
 			{
+				//printf("prob:%lf acpprob:%lf T:%lf newcost:%lf prevcost:%lf best:%lf accept_gap:%.2lf\n", 
+				//	prob, acpprob, T, newcost, curr_cost, best_cost, _acceptation_gap);
 				s = cur;
 				ins->score += newcost<curr_cost?_sigma2:_sigma3;
 				rmv->score += newcost<curr_cost?_sigma2:_sigma3;
@@ -101,7 +112,9 @@ void ALNS::Optimize(Sol & s, BestSolutionList * best_sol_list)
 		/*if(iter % _chrono_check_iter == 0 && _chrono.hasToEnd()) break;*/
 
 		T = T * _temperature;
-		if((T < Tmax || T < 0.000001) && nb_iter_without_new_best >= 10000)
+		if((T < Tmax || T < 0.000001) 
+			&& ( (nb_iter_without_new_best >= 1000 && Parameters::GetCostPolicy() == CN)
+			|| (nb_iter_without_new_best >= 500 && Parameters::GetCostPolicy() == RT) ))
 			T= Tmin;
 	}//end for
 

@@ -99,17 +99,46 @@ int main(int argc, char ** argv)
 	
 	load.LoadSolution(pr,sol,Parameters::GetInitialSolutionFileName());
 	printf("Loaded the following solution:\n");
+	Parameters::SetCostPolicy(RT); // Use Restocking Trips policy
 	sol.Update();
 	sol.Show();
 	
+	double cost_RT, cost_CN;
+	Parameters::SetCostPolicy(CN); // Use Restocking Trips policy
+	cost_CN = sol.GetCost();
+	
+	
+	cost_RT = sol.GetCost();
+	
+	printf("Cost RT:%.1lf CN:%.1lf\n",cost_RT,cost_CN);
+	Parameters::SetCostPolicy(RT); // Use Restocking Trips policy
+	
+	/*for(int i=0;i<sol.GetUsedDriverCount();i++)
+	{
+		std::vector<Node*> path;
+		sol.GetPath(sol.GetDriver(i), path);
+		r._show = true;
+		double path_cost_CN = r.CalculateContinueToNextMIP(path, 40, 1);
+		double path_cost_RT = r.CalculateRestockingTrips(path, 40, 1);
+		
+		printf("driver %d/%d path_cost_CN:%.1lf path_cost_RT:%.1lf\n",
+				i,sol.GetUsedDriverCount(),path_cost_CN,path_cost_RT);
+		getchar();
+	}
+	exit(1);*/
+		
 	InsRmvMethodBRPCS method(&r,&pr);
 	SteepestDescentInsertionBRPCS steep_seq(method,&r,0.5);
 	SeqInsertBRPCS seq(method,&r);
 	RegretInsertBRPCS regret_2(&pr,method,&r); //regret_k initialized with 2
 	RegretInsertBRPCS regret_3(&pr,method,&r); regret_3.SetK(3);
 	RegretInsertBRPCS regret_4(&pr,method,&r); regret_4.SetK(4);
-	RegretInsertBRPCS regret_n(&pr,method,&r);	regret_n.SetK(pr.GetDriverCount());
+	RegretInsertBRPCS regret_n(&pr,method,&r); regret_n.SetK(pr.GetDriverCount());
 	
+	//Testing
+	//steep_seq.Insert(sol,true);	//steep_seq is faster but weaker than greedy insertion
+	//sol.Update();
+	//printf("Initial solution cost:%.2lf drivers:%d unassigneds:%d\n",sol.GetCost(),sol.GetUsedDriverCount(),sol.GetUnassignedCount());
 	
 	RemoveRandomBRPCS random_remove;
 	RelatednessRemoveBRPCS related_remove(pr.GetDistances());
@@ -140,13 +169,14 @@ int main(int argc, char ** argv)
 	alns.AddRemoveOperator(&related_remove);
 
 
-	alns.SetAcceptationGap(1.1);
+	alns.SetAcceptationGap(0.001);
 	alns.SetTemperatureIterInit(0);
-	alns.SetTemperature(0.9995);
-	alns.SetIterationCount(1000);//Remember to set a lot of iterations
+	alns.SetTemperature(0.9980); //For RT
+	alns.SetIterationCount(25000);//Remember to set a lot of iterations
 	
 	// Done in Parameters at the beginning, unless you want to restock
 	Parameters::SetCostPolicy(RT); // Use Restocking Trips policy
+	//Parameters::SetCostPolicy(CN);
 	printf("Cost policy:%s\n",Parameters::GetCostPolicy() == RT ? "Restock" : "Continue-To-Next");
 	alns.SetCostPolicy( Parameters::GetCostPolicy() ); // Temporarily not used
 
@@ -222,22 +252,18 @@ int main(int argc, char ** argv)
 	for(int i=0;i<sol.GetDriverCount();i++)
 	{
 		Driver * d = sol.GetDriver(i);
-		if(sol.GetRouteLength(i)<2) continue;
+		if(sol.RoutesLength[d->id]==0) continue;
 
 		//distances.push_back(d->curDistance);
 		
 		Node * curr = sol.GetNode( d->StartNodeID );
-		Node * prev = sol.GetNode( d->StartNodeID ); // Keep track of the previous node
 		
-		solutionFile << routeCounter << "," << sol.GetRouteLength(d) << "," << d->sum_q << "," << d->sum_q_e << "," << d->curDistance << "\n";
+		solutionFile << routeCounter << "," << sol.RoutesLength[d->id] << "," << d->sum_q << "," << d->sum_q_e << "," << d->curDistance << "\n";
 		while( curr != NULL)
 		{
 			solutionFile << curr->id << "-";
 			//printf("%d-",curr->id);
-			
 			curr = sol.Next[ curr->id ];
-			
-			prev = curr;
 		
 		}
 		//printf(" length:%d\n",sol.GetRouteLength(i));

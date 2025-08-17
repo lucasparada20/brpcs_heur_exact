@@ -24,10 +24,14 @@ void SeqInsertBRPCS::Insert(Sol & s, bool show)
 		std::vector< Move > move_vec;
 		move_vec.reserve( s.GetDriverCount()*100 );
 		
+		
+		bool skip_extra_empty = (nodes.size() <= 0.1 * s.GetProb()->GetCustomerCount());
 		bool has_seen_empty_driver = false;
+		
+		//printf("In Insert skip_extra_empty:%d allDrivers:%d\n",skip_extra_empty,s.GetDriverCount());
 		for (int j = 0; j < s.GetDriverCount(); j++)
 		{
-			if(s.GetRouteLength( s.GetDriver(j)) == 0 && has_seen_empty_driver) continue;
+			if(s.GetRouteLength( s.GetDriver(j)) == 0 && has_seen_empty_driver && skip_extra_empty) continue;
 			
 			FillMoveVec(s, s.GetDriver(j), n, move_vec); //Stores all feasible moves without computing Mip or the Lb
 			
@@ -37,7 +41,7 @@ void SeqInsertBRPCS::Insert(Sol & s, bool show)
 			
 		std::sort( move_vec.begin(), move_vec.end() );
 		
-		//printf("moves from FillMoveVec:%d\n",(int)move_vec.size());
+		//printf("moves from FillMoveVec:%d for nodeId:%d\n",(int)move_vec.size(),n->id);
 		double elapsed_seconds = 0.0;
 		clock_t begin_drv_loop = clock();
 		int best_idx=0;
@@ -57,7 +61,7 @@ void SeqInsertBRPCS::Insert(Sol & s, bool show)
 
 			double cost = AlnsOutils::CalculateRouteCost(_r, path, Q, init_q, init_qe, has_zero_first_pass);
 						
-			//printf("Cost in Insert:%.1lf Policy:%d\n",cost,Parameters::GetCostPolicy());
+			//printf("Cost in Insert:%.1lf nodesId:%d\n",cost,n->id);
 			
 			if (cost < 9999.0) {
 				move.IsFeasible = true;
@@ -67,7 +71,8 @@ void SeqInsertBRPCS::Insert(Sol & s, bool show)
 
 				// Check next nb_look_ahead moves for improvements. If not, then break!
 				bool is_better_than_next_two = true;
-				int nb_look_ahead = 2;
+				//int nb_look_ahead = 3; // Testing ....
+				int nb_look_ahead = 2; 
 				if (Parameters::GetBSSType() == SW && Parameters::GetCostPolicy() == CN 
 					|| Parameters::GetBSSType() == CS && Parameters::GetCostPolicy() == CN)
 					nb_look_ahead = 3;
@@ -102,7 +107,7 @@ void SeqInsertBRPCS::Insert(Sol & s, bool show)
 		}
 		clock_t end_drv_loop = clock();
 		double time_drv_loop = (double)( end_drv_loop - begin_drv_loop ) /CLOCKS_PER_SEC;
-		//printf("NodeToInsert:%d Moves:%d found_best_at:%d elapsed[s]:%.1lf\n",n->no,(int)move_vec.size(),best_idx,time_drv_loop);
+		//printf("NodeToInsert:%d Moves:%d found_best_at:%d elapsed[s]:%.1lf\n",n->id,(int)move_vec.size(),best_idx,time_drv_loop);
 		//m1.Show();
 		
 		
@@ -139,6 +144,7 @@ void SeqInsertBRPCS::Insert(Sol & s, bool show)
 	//for(int i=0;i<s.GetUnassignedCount();i++)
 	//	printf("%d ",s.GetUnassigned(i)->id);
 	//printf("\n");
+	//getchar();
 	
 	clock_t end_insert = clock();
 	double elapsed_insert = (double)( end_insert - begin ) / CLOCKS_PER_SEC;
@@ -161,14 +167,13 @@ void SeqInsertBRPCS::FillMoveVec(Sol & s, Driver * d, Node * n, std::vector<Move
 		path.push_back(next);
 		prev = next;
 	}
-	/*if((int)path.size()>3)
-	{
-		printf("Path: ");
-		for(size_t i=0;i<path.size();i++)
-			printf("%d-", path[i]->id);
-		printf("\n");
-		getchar();
-	}*/
+	//if((int)path.size()>3)
+	//{
+	//	printf("nId:%d Dist:%.1lf Cost:%.1lf Path: ",n->id,d->curDistance,d->curRecourse);
+	//	for(size_t i=0;i<path.size();i++)
+	//		printf("%d-", path[i]->id);
+	//	printf("\n");
+	//}
 
 	int combined_demand = n->q + n->q_e;
 	int mu_pos = std::min(Q, combined_demand + n->maxWm);
@@ -179,7 +184,7 @@ void SeqInsertBRPCS::FillMoveVec(Sol & s, Driver * d, Node * n, std::vector<Move
 	} else if(Parameters::GetBSSType() == SW){
 		lambda_pos = std::max(-Q, combined_demand - n->h_i0 - n->h_e_i0 - n->h_u_i0);
 	}
-
+	
 	int pos = 0;
 	prev = s.GetNode( d->StartNodeID );
 	while(prev->type != NODE_TYPE_END_DEPOT)
@@ -199,11 +204,30 @@ void SeqInsertBRPCS::FillMoveVec(Sol & s, Driver * d, Node * n, std::vector<Move
 		double deltaDistance = s.GetDist(prev,n) + s.GetDist(n,next) - s.GetDist(prev,next);
 		if(d->curDistance + deltaDistance > Parameters::MaxRouteDistance()) 
 		{
+			//printf("nId:%d pos:%d deltaDistance:%.1lf newDist:%.1lf\n",n->id,pos,deltaDistance,d->curDistance + deltaDistance);
+			
 			prev = next; pos++; continue;
 		}
 		
         int lambda = prev->lambda + lambda_pos;
         int mu = prev->mu + mu_pos;
+		
+		//Debugging : Is not the cost, its the distance!
+		/*if(!AlnsOutils::Is_feasible(prev, next, lambda, mu, Q))
+		{
+			std::vector<Node*> path1;
+			int init_q; int init_qe; bool has_zero_first_pass;
+			AlnsOutils::FillPathWithPos(s, d, n, pos, path1, init_q, init_qe, has_zero_first_pass);			
+			double rec = AlnsOutils::CalculateRouteCost(_r, path, Q, init_q, init_qe, has_zero_first_pass);
+			IloEnv env; RouteFeasibility r(s.GetProb());
+			double rec1 = r.CalculateContinueToNextMIP(path,Q,1,env);
+			env.end();
+			if(rec<9990 || rec1 > 9990)
+			{
+				printf("cost:%.1lf cost1:%.1lf\n",rec,rec1);
+			} 
+			printf("nId:%d pos:%d cost:%.1lf cost1:%.1lf\n",n->id,pos,rec,rec1);	
+		}*/
 		
 		if (Parameters::GetCostPolicy() == CN && !AlnsOutils::Is_feasible(prev, next, lambda, mu, Q)) {
 			prev = next;
@@ -230,7 +254,12 @@ void SeqInsertBRPCS::FillMoveVec(Sol & s, Driver * d, Node * n, std::vector<Move
 			9999 // RecourseLb
 		);
 		
+		//printf("nId:%d pos:%d move_vec:%zu\n",n->id,pos,move_vec.size());
+		
 		prev = next;
 		pos++;
 	}
+	//printf("For nId:%d found %zu moves\n",n->id,move_vec.size());
+	//if(!move_vec.size())
+	//	getchar();
 }

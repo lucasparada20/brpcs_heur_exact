@@ -4,7 +4,7 @@ CXX = g++
 CXXFLAGS ?= -std=c++11 -Wall
 
 # CPLEX directory
-CPLEX_DIR = /some/path/to/Cplex
+CPLEX_DIR = /home/lucasparada20/CPLEX_Studio2211
 
 # Include and lib paths
 CPLEX_INC = -I$(CPLEX_DIR)/cplex/include -I$(CPLEX_DIR)/concert/include
@@ -13,7 +13,7 @@ CPLEX_LIB_DIR = -L$(CPLEX_DIR)/cplex/lib/x86-64_linux/static_pic \
 CPLEX_LIBS = -lilocplex -lconcert -lcplex -lm -lpthread -ldl
 
 # Sources and objects
-SOURCES = AlnsBRPCS.cpp main_test_CN.cpp RouteFeasibilityBRPCS.cpp \
+SOURCES = AlnsBRPCS.cpp main_heur_brpcs.cpp RouteFeasibilityBRPCS.cpp \
           Parameters.cpp LoadBRPCS.cpp CostFunctionBRPCS.cpp \
           AlnsOutils.cpp InsRmvMethodBRPCS.cpp SteepestDescentInsertionBRPCS.cpp \
           SequentialInsertionBRPCS.cpp RelatednessRemoveBRPCS.cpp \
@@ -61,5 +61,3 @@ usage:
 # Clean rule
 clean:
 	rm -f $(TARGET) *.o
-
-

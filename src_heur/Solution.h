@@ -222,9 +222,9 @@ class Sol
 				Driver* d1 = drivers[i];
 				Driver* d2 = drivers[i+1];
 				
-				if(Parameters::RecoursePolicy() == 1  &&  d1->curDistance + d2->curDistance > Parameters::MaxRouteDistance())
+				if(Parameters::GetCostPolicy() == CN  &&  d1->curDistance + d2->curDistance > Parameters::MaxRouteDistance())
 					continue;
-				if(Parameters::RecoursePolicy() == 2  &&  d1->curDistance + d1->curRecourse + d2->curDistance + d2->curRecourse > Parameters::MaxRouteDistance()) 	continue;
+				if(Parameters::GetCostPolicy() == RT  &&  d1->curDistance + d1->curRecourse + d2->curDistance + d2->curRecourse > Parameters::MaxRouteDistance()) 	continue;
 				
 				//printf("Merging d%d dist:%.1lf with d%d dist:%.1lf ...\n",d1->id,d1->curDistance,d2->id,d2->curDistance);
 				//Show(d1); Show(d2);

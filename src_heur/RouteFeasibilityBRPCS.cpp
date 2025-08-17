@@ -2,7 +2,7 @@
 
 //Needs an instance of RouteFeasibility and reuses variables
 double RouteFeasibility::CalculateRestockingTrips(std::vector<Node*>& nodes, int Q, int delta)
-{
+{	
 	path_ids.clear(); path_ids.reserve( nodes.size() + 2 );
 	for(size_t i=0;i<nodes.size();i++)
 		if(nodes[i]->type == NODE_TYPE_CUSTOMER)
@@ -1727,7 +1727,7 @@ double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, i
 	if (_show)
 	{
 		cplex_restock.exportModel("restockSW.lp");
-		printf("routeDist:%.1lf maxDist:%d\n",base_dist,Parameters::MaxRouteDistance());
+		printf("routeDist:%.1lf maxDist:%.1lf\n",base_dist,Parameters::MaxRouteDistance());
 		printf("SW cplex optimal values ... Restock cost: %.1lf restocked: %d nb_restocks: %d\n",
 			(double)cplex_restock.getObjValue(), restocked, nb_restocks);
 		
@@ -1757,15 +1757,14 @@ double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, i
 
 		for (int i = 0; i <= t; ++i) {
 			std::cout << "x[" << i << "] = " << (int)cplex_restock.getValue(x[i]) << ", ";
-			std::cout << "e[" << i << "] = " << (int)cplex_restock.getValue(e[i]) << ", ";
-			std::cout << "u[" << i << "] = " << (int)cplex_restock.getValue(u[i]) << std::endl;
+			std::cout << "e[" << i << "] = " << (int)cplex_restock.getValue(e[i]) << std::endl;
 		}
 
 		for (int i = 0; i < t; ++i) {
 			std::cout << "wX_minus[" << i << "] = " << (int)cplex_restock.getValue(wX_minus[i]) << ", ";
 			std::cout << "wX_plus[" << i << "] = " << (int)cplex_restock.getValue(wX_plus[i]) << ", ";
 			std::cout << "wE_minus[" << i << "] = " << (int)cplex_restock.getValue(wE_minus[i]) << ", ";
-			std::cout << "wE_plus[" << i << "] = " << (int)cplex_restock.getValue(wE_plus[i]) << ", ";
+			std::cout << "wE_plus[" << i << "] = " << (int)cplex_restock.getValue(wE_plus[i]) << ", " << std::endl;
 		}
 
 		if (restocked)
@@ -1775,7 +1774,7 @@ double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, i
 		}
 	}
 
-	return cplex_restock.getObjValue();
+	return (double)cplex_restock.getObjValue();
 }
 
 bool RouteFeasibility::HasZeroHCBase(std::vector<Node*>& nodes, int Q, bool show)
@@ -1876,4 +1875,92 @@ bool RouteFeasibility::HasZeroHCBase(std::vector<Node*>& nodes, int Q, bool show
 	if(show) printf("The sequence of stations should have Zero recourse ...\n");
 
 	return true;
+}
+
+int RouteFeasibility::CostTwoDemands(std::vector<Node*>& nodes, int Q, int delta)
+{
+    int cost = 0;
+    int BigM = 9999;
+
+    // allocate DP tables
+    int **prev = new int*[Q+1];
+    int **next = new int*[Q+1];
+    for (int q1 = 0; q1 <= Q; ++q1) {
+        prev[q1] = new int[Q+1];
+        next[q1] = new int[Q+1];
+        for (int q2 = 0; q2 <= Q; ++q2) {
+            if (q1 + q2 > Q)
+                prev[q1][q2] = next[q1][q2] = BigM; // infeasible state
+            else
+                prev[q1][q2] = next[q1][q2] = 0;
+        }
+    }
+
+    // DP backward along path
+    for (int i = (int)nodes.size() - 2; i >= 1; --i)
+    {
+        Node *n = nodes[i];
+
+        for (int q1 = 0; q1 <= Q; ++q1)
+        {
+            for (int q2 = 0; q2 <= Q; ++q2)
+            {
+                if (q1 + q2 > Q) {
+                    next[q1][q2] = BigM; 
+                    continue;
+                }
+
+                int best = BigM;
+
+                // Unloads (w_plus)
+                for (int u1 = 0; u1 <= n->h_i0; ++u1) //n->w_plus_1
+                {
+                    for (int u2 = 0; u2 <= n->h_e_i0; ++u2) //n->w_plus_2
+                    {
+                        int nq1 = q1 + n->q - u1;
+                        int nq2 = q2 + n->q_e - u2;
+                        if (nq1 >= 0 && nq2 >= 0 && nq1 + nq2 <= Q)
+                            best = std::min(best, u1 + u2 + prev[nq1][nq2]);
+                    }
+                }
+
+				// Loads (w_minus)
+				for (int u1 = 0; u1 <= n->maxWm; ++u1) // n->w_minus_1
+				{
+					int max_u2 = std::min(n->maxWm, n->maxWm - u1); // enforce joint bound
+					for (int u2 = 0; u2 <= max_u2; ++u2)
+					{
+						int nq1 = q1 + n->q + u1;
+						int nq2 = q2 + n->q_e + u2;
+						if (nq1 >= 0 && nq2 >= 0 && nq1 + nq2 <= Q)
+							best = std::min(best, u1 + u2 + prev[nq1][nq2]);
+					}
+				}
+
+
+                next[q1][q2] = best;
+            }
+        }
+
+        std::swap(prev, next);
+    }
+
+    // find minimum cost over all feasible start states
+    int cost2 = BigM;
+    for (int q1 = 0; q1 <= Q; ++q1)
+        for (int q2 = 0; q2 <= Q; ++q2)
+            if (q1 + q2 <= Q)
+                cost2 = std::min(cost2, prev[q1][q2]);
+
+    cost += cost2;
+
+    // cleanup
+    for (int q1 = 0; q1 <= Q; ++q1) {
+        delete[] prev[q1];
+        delete[] next[q1];
+    }
+    delete[] prev;
+    delete[] next;
+
+    return cost;
 }

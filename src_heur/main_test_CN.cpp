@@ -93,6 +93,62 @@ int main(int argc, char ** argv)
 	RouteFeasibility r(&pr); //All classes that require r utilize a reference to it.
 	
 	CostFunctionBRPCS cost_func(&r);
+	
+	//Test : DP vs MIP for SW
+	/*srand(19880704); 
+	int k = 40;  // Set k stations statically
+	std::vector<Node*> vec1;
+	RouteFeasibility r1(&pr);
+
+	double cumTime1 = 0.0, cumTime2 = 0.0;  // cumulative totals
+
+	for (int comb = 0; comb < 100000; comb++)
+	{
+		vec1.clear();
+		vec1.reserve(2 * k);
+		
+		while ((int)vec1.size() < k)
+		{
+			int index = rand() % pr.GetCustomerCount();
+			vec1.push_back(pr.GetCustomer(index));            
+		}
+		
+		vec1.insert(vec1.begin(), pr.GetNode(pr.GetCustomerCount()));
+		vec1.push_back(pr.GetNode(pr.GetCustomerCount() + 1));
+		
+		double time1, time2;
+		IloEnv env;
+		clock_t begin = clock();
+		int costMIP = r1.CalculateContinueToNextSW(vec1,Q,1,env);
+		clock_t end1 = clock();
+		env.end();
+		time1 = (double)(end1 - begin) / CLOCKS_PER_SEC;
+		cumTime1 += time1;
+
+		begin = clock();
+		int costDP = r1.CostTwoDemands(vec1, Q, 1);
+		clock_t end2 = clock();
+		time2 = (double)(end2 - begin) / CLOCKS_PER_SEC;
+		cumTime2 += time2;
+
+		if (comb % 1000 == 0 && comb > 0)
+			printf("iter:%d timeMIP:%.2lf avgTimeMip:%.2lf cumTimeMip:%.2lf "
+				   "timeDP:%.2lf avgTimeDP:%.2lf cumTimeDP:%.2lf\n",
+				   comb,
+				   time1, cumTime1 / (comb + 1), cumTime1,
+				   time2, cumTime2 / (comb + 1), cumTime2);
+
+		if (costDP != costMIP)
+		{
+			printf("Phil Collins (1989) printing to debug .... CostCN:%d CostDP:%d\n", costMIP, costDP);
+			printf("Stations:\n");
+			for (Node* n : vec1)
+				if (n->type == NODE_TYPE_CUSTOMER)
+					n->Show();
+			exit(1);
+		} 
+	}*/
+
 
 	Sol sol(&pr,&cost_func);
 	sol.PutAllNodesToUnassigned();
@@ -126,7 +182,7 @@ int main(int argc, char ** argv)
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"ALL")==0)
 	{
 		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_2); alns.AddInsertOperator(&regret_3);
-		alns.AddInsertOperator(&regret_4); //alns.AddInsertOperator(&regret_n);
+		//alns.AddInsertOperator(&regret_4); //alns.AddInsertOperator(&regret_n);
 	} else {
 		printf("No construction heuristic given. Phil Collins (1989). Exiting ...\n"); exit(1);
 	}
@@ -138,10 +194,10 @@ int main(int argc, char ** argv)
 	steep_seq.Insert(sol,true);	//steep_seq is faster but weaker than greedy insertion
 	printf("Initial solution cost:%.2lf drivers:%d unassigneds:%d\n",sol.GetCost(),sol.GetUsedDriverCount(),sol.GetUnassignedCount());
 	//Alns parameters
-	alns.SetAcceptationGap(1.1);
+	alns.SetAcceptationGap(1.0);
 	alns.SetTemperatureIterInit(0);
 	alns.SetTemperature(0.9995);
-	alns.SetIterationCount(1000);//Remember to set a lot of iterations
+	alns.SetIterationCount(100);//Remember to set a lot of iterations
 	
 	// Done in Parameters at the beginning, unless you want to restock
 	Parameters::SetCostPolicy(CN); // Use Continue-To-Next trips policy
@@ -207,36 +263,31 @@ int main(int argc, char ** argv)
 	re_file_CN.close();
 	
 	//route file
-	std::string solution_file_name_str = std::string("results/solution_CN_") + cons_heur_str + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";	
+	std::string solution_file_name_str = std::string("results/test_solution_CN_") + cons_heur_str + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";	
 	std::ofstream solutionFile(solution_file_name_str);
 	
 	if(!solutionFile.is_open())
 	{
 		printf("Could not open solutionFile file:%s\n",solution_file_name_str); 
 		exit(1);
-	}	
-	solutionFile << pr.GetCustomerCount() << "," << sol.GetUsedDriverCount() << "\n";	
+	}
+	
+	solutionFile << pr.GetCustomerCount() << "," << sol.GetDriverCount() << "\n";	
 	int routeCounter=0;
-	for(int i=0;i<sol.GetDriverCount();i++)
+	for(int i=0;i<sol.GetDriverCount();i++) // Printing all routes to avoid I/O bugs later when loading
 	{
 		Driver * d = sol.GetDriver(i);
-		if(sol.GetRouteLength(i)<2) continue;
+		//if(sol.RoutesLength[d->id]==0 && strcmp(Parameters::GetCityName(),"paris") != 0) continue;
 
 		//distances.push_back(d->curDistance);
 		
 		Node * curr = sol.GetNode( d->StartNodeID );
-		Node * prev = sol.GetNode( d->StartNodeID ); // Keep track of the previous node
-		
-		solutionFile << routeCounter << "," << sol.GetRouteLength(d) << "," << d->sum_q << "," << d->sum_q_e << "," << d->curDistance << "\n";
+		solutionFile << routeCounter << "," << sol.RoutesLength[d->id] << "," << d->sum_q << "," << d->sum_q_e << "," << d->curDistance << "\n";
 		while( curr != NULL)
 		{
 			solutionFile << curr->id << "-";
 			//printf("%d-",curr->id);
-			
 			curr = sol.Next[ curr->id ];
-			
-			prev = curr;
-		
 		}
 		//printf(" length:%d\n",sol.GetRouteLength(i));
 		solutionFile << "\n";

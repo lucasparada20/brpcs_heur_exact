@@ -32,6 +32,7 @@ public:
 	int CalculateContinueToNextMIP(std::vector<Node*>& nodes, int Q, int delta);
 	int CalculateContinueToNextMIP(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	int CalculateContinueToNextSW(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
+	int CostTwoDemands(std::vector<Node*>& nodes, int Q, int delta);
 	
 	int CalculateContinueToNextDP(std::vector<Node*>& nodes, int Q, int delta);
 	bool CheckSummedInequality(Node* node, int x, int e, int W, int z_k);

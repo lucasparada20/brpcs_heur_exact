@@ -59,14 +59,6 @@ double CostFunctionBRPCS::GetCost(Sol & s,Driver * d)
 			 
 		rec = has_zero_rec ? 0 : _r->CalculateContinueToNextMIP(path,Q,1);//Last parameter is the integer delta
 		
-		//has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false);
-		//has_zero_rec = RouteFeasibility::HasZeroHCUncharged(path, Q, false); // Slightly less general
-		
-		 // OG :
-		//if(has_zero_rec) 
-			//has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false, init_q, init_qe);						
-		//rec = has_zero_rec ? 0 : _r->CalculateContinueToNextMIP(path,Q,1);//Last parameter is the integer delta
-		
 	} else { // Restock
 		
 		if(has_zero_rec && Parameters::GetBSSType() == CS){
@@ -293,7 +285,7 @@ void CostFunctionBRPCS::Show(Sol * s, Driver * d)
 	
 	int Q = d->capacity;
 	
-	double policy_cost = !Parameters::GetCostPolicy() ? 
+	double policy_cost = Parameters::GetCostPolicy() == CN ? 
 				_r->CalculateContinueToNextMIP(path,Q,1)
 				: _r->CalculateRestockingTrips(path,Q,1);
 
