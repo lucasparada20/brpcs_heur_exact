@@ -117,11 +117,12 @@ int main(int argc, char ** argv)
 		vec1.push_back(pr.GetNode(pr.GetCustomerCount() + 1));
 		
 		double time1, time2;
-		IloEnv env;
+		
 		clock_t begin = clock();
+		IloEnv env;
 		int costMIP = r1.CalculateContinueToNextSW(vec1,Q,1,env);
-		clock_t end1 = clock();
 		env.end();
+		clock_t end1 = clock();
 		time1 = (double)(end1 - begin) / CLOCKS_PER_SEC;
 		cumTime1 += time1;
 
@@ -197,7 +198,7 @@ int main(int argc, char ** argv)
 	alns.SetAcceptationGap(1.0);
 	alns.SetTemperatureIterInit(0);
 	alns.SetTemperature(0.9995);
-	alns.SetIterationCount(100);//Remember to set a lot of iterations
+	alns.SetIterationCount(50000);//Remember to set a lot of iterations
 	
 	// Done in Parameters at the beginning, unless you want to restock
 	Parameters::SetCostPolicy(CN); // Use Continue-To-Next trips policy
@@ -240,7 +241,7 @@ int main(int argc, char ** argv)
 		cons_heur_str = "ALL";
 	
 	std::string bss_type_str = Parameters::GetBSSType() == CS ? "_CS" : "_SW";
-	std::string re_continue_file_name = std::string("results/re_CN_") + cons_heur_str + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";
+	std::string re_continue_file_name = std::string("results/re_CN_") + cons_heur_str + "_" + std::to_string((int)Parameters::MaxRouteDistance()) + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";
 	std::ofstream re_file_CN(re_continue_file_name);
 	if(!re_file_CN.is_open())
 	{
@@ -263,7 +264,7 @@ int main(int argc, char ** argv)
 	re_file_CN.close();
 	
 	//route file
-	std::string solution_file_name_str = std::string("results/test_solution_CN_") + cons_heur_str + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";	
+	std::string solution_file_name_str = std::string("results/test_solution_CN_") + cons_heur_str + "_" + std::to_string((int)Parameters::MaxRouteDistance()) + "_" + Parameters::GetCityName() + "_" + std::to_string(Parameters::GetUValue()) + bss_type_str + ".txt";	
 	std::ofstream solutionFile(solution_file_name_str);
 	
 	if(!solutionFile.is_open())

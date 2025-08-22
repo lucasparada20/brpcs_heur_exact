@@ -23,7 +23,7 @@ std::string Parameters::initial_solution_file;
 int Parameters::nb_stations=0;
 int Parameters::u_value=0;
 int Parameters::add_depot_stations=0;
-double Parameters::max_route_distance=0.0;
+double Parameters::max_route_distance=100.0;
 int Parameters::recourse_policy=0;
 int Parameters::delta = 1;
 int Parameters::HardQ = 100;
@@ -147,6 +147,10 @@ void Parameters::Read(int arg, char ** argv)
 		else if(strcmp(first,"initial_solution_file")==0)
 		{
 			initial_solution_file = std::string(second);
+		}
+		else if(strcmp(first,"max_route_distance")==0)
+		{
+			max_route_distance=std::stod(second);
 		}
 	}
 }
