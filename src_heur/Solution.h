@@ -373,6 +373,7 @@ class Sol
 					InsertAfter(path[j], prev);
 					prev = path[j];
 				}
+			//this->Show(d);	
 		}
 
 		void GetPath(Driver * d, std::vector<Node*> & path)

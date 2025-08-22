@@ -1,6 +1,7 @@
 #include "CostFunctionBRPCS.h"
 #include "RouteFeasibilityBRPCS.h"
 #include "Solution.h"
+#include "AlnsOutils.h"
 
 double CostFunctionBRPCS::GetCost(Sol & s)
 {
@@ -42,11 +43,13 @@ double CostFunctionBRPCS::GetCost(Sol & s,Driver * d)
 	
 	double cost = INF_ROUTE_COST;
 	double rec = INF_ROUTE_COST; 	
-	bool has_zero_rec = true;
-	if(init_q > Q || init_q < -Q || init_qe > Q || init_qe < -Q) has_zero_rec = false;
-	if(init_q+init_qe > Q || init_q+init_qe < -Q) has_zero_rec = false; 
+	bool has_zero_first_pass = true;
+	if(init_q > Q || init_q < -Q || init_qe > Q || init_qe < -Q) has_zero_first_pass = false;
+	if(init_q+init_qe > Q || init_q+init_qe < -Q) has_zero_first_pass = false; 
 	
-	if(Parameters::GetCostPolicy() == CN) // Continue-to-next
+	rec = AlnsOutils::CalculateRouteCost(_r, path, Q, init_q, init_qe, has_zero_first_pass);
+	
+	/*if(Parameters::GetCostPolicy() == CN) // Continue-to-next
 	{
 		if(!RouteFeasibility::EndLoadHybrid(path,Q,false))
 			return INF_ROUTE_COST;	
@@ -68,7 +71,7 @@ double CostFunctionBRPCS::GetCost(Sol & s,Driver * d)
 		}
 			
 		rec = has_zero_rec ? 0 :_r->CalculateRestockingTrips(path,Q,false);
-	}
+	}*/
 		
 	if(rec < 9999.0)
 		cost = d1 + rec;	
@@ -185,8 +188,10 @@ void CostFunctionBRPCS::Update(Sol & s, Driver * d)
 		(d->sum_q_e <= Q && d->sum_q_e >= -Q) &&
 		(d->sum_q + d->sum_q_e <= Q) &&
 		(d->sum_q + d->sum_q_e >= -Q);
+	
+	d->curRecourse = AlnsOutils::CalculateRouteCost(_r, path, Q, d->sum_q, d->sum_q_e, (is_feasible && within_capacity));
 
-	if (Parameters::GetCostPolicy() == CN) { // Continue-to-next
+	/*if (Parameters::GetCostPolicy() == CN) { // Continue-to-next
 		if (!is_feasible || !within_capacity)
 			has_zero_rec = false;
 		
@@ -210,7 +215,7 @@ void CostFunctionBRPCS::Update(Sol & s, Driver * d)
 		}
 	
 		d->curRecourse = has_zero_rec ? 0 : _r->CalculateRestockingTrips(path, Q, 1);
-	}
+	}*/
 	
 	if (path[path.size()-1]->type == NODE_TYPE_CUSTOMER)
 	{

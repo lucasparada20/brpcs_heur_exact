@@ -64,13 +64,22 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	
 	Parameters::SetBSSType((char*)bss_type.c_str());
 	
-	if(Parameters::GetBSSType() == SW)
+	if (Parameters::GetBSSType() == SW &&
+		strcmp(Parameters::GetCityName(), "mexicocity") != 0 &&
+		strcmp(Parameters::GetCityName(), "montreal") != 0 &&
+		strcmp(Parameters::GetCityName(), "rio") != 0 &&
+		strcmp(Parameters::GetCityName(), "washington") != 0)
+	{
 		Parameters::SetMaxRouteDistance(100.0);
-	else Parameters::SetMaxRouteDistance(50.0);
+	}
+	else
+		Parameters::SetMaxRouteDistance(75.0);
+
 	
-	printf("Bss type from load: %s MaxDist: %.1lf\n",
+	printf("Bss type from load: %s MaxDist: %.1lf city_name: %s\n",
 		Parameters::GetBSSType() == 1? "CS" : "SW",
-		Parameters::MaxRouteDistance());
+		Parameters::MaxRouteDistance(),
+		Parameters::GetCityName());
 	
 	std::vector<Node> nodes;
 	nodes.reserve(stations+1);
@@ -180,12 +189,6 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	
 	int dim = nodes.size()+1;
 	double ** d = new double*[dim];
-
-	//Assumption for maximum route duration
-	//1.-Amazon drivers drive, on average 100+ miles per day. We thus set the hard limit to <= 100 miles = 160 km
-	//Parameters::SetMaxRouteDistance(160);
-	Parameters::SetMaxRouteDistance(100.0);
-	//Parameters::SetMaxRouteDistance(50.0);
 	
 	//printf("Distance Matrix:\n");
 	// Order is:  Nodes 0 ... dim-2 are customers. Node dime-1 is the first depot created

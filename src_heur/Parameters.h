@@ -33,7 +33,7 @@ class Parameters
 		}
 		static int GetBSSType() { return bss_type; }
 		static int AddDepotStations(){ return add_depot_stations; }
-		static void SetMaxRouteDistance(int d){ max_route_distance = d;}
+		static void SetMaxRouteDistance(double d){ max_route_distance = d;}
 		static double MaxRouteDistance(){ return max_route_distance; }
 		static void SetRecoursePolicy(int p){ recourse_policy = p; }
 		static int RecoursePolicy(){ return recourse_policy; }

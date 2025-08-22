@@ -24,8 +24,6 @@ public:
 	
 	// Cost computation
 	double CalculateRestockingTrips(std::vector<Node*>& nodes, int Q, int delta);
-	double CalculateRestockingTripsNonLinear(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
-	double CalculateRestockingTripsBigM(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	double CalculateRestockingTripsLM(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	double CalculateRestockingTripsSW(std::vector<Node*>& nodes, int Q, int delta, IloEnv env);
 	
@@ -53,9 +51,13 @@ public:
 	static bool HasZeroHCBase(std::vector<Node*>& nodes, int Q, bool show, int init_q, int init_qe);
 	static bool EndLoadHybrid(std::vector<Node*>& nodes, int Q, bool show);
  	
-	// Switch to debug
+	// Switch to debug: _show = true
 	bool _show; bool restocked;
 	int nb_restocks;
+	
+	// Global variables
+	int total_nb_restock; int total_nb_missed_bikes; int total_picked_uncharged_bikes; int total_delivered_uncharged_bikes;
+	double total_restock_distance;	
 	
 private:
 	

@@ -27,8 +27,6 @@ double RouteFeasibility::CalculateRestockingTrips(std::vector<Node*>& nodes, int
 	
 	IloEnv env;
 	// the cost is a double here and the hash map was initialized with doubles
-	//double cost = CalculateRestockingTripsNonLinear(nodes,Q,delta,env);
-	//double cost = CalculateRestockingTripsBigM(nodes,Q,delta,env);
 	double cost = 0.0;
 	if(Parameters::GetBSSType() == CS)
 		cost = CalculateRestockingTripsLM(nodes,Q,delta,env);
@@ -81,493 +79,11 @@ int RouteFeasibility::CalculateContinueToNextMIP(std::vector<Node*>& nodes, int 
 	return cost;
 }
 
-//To compute the cost
-double RouteFeasibility::CalculateRestockingTripsNonLinear(std::vector<Node*>& nodes, int Q, int delta, IloEnv env)
-{
-	int t =  nodes.size() - 2; // t is without counting depots
-	if(t < 1) return 0.0;
-	
-    model = IloModel (env);
-    constraints = IloConstraintArray(env);
-	
-	std::vector<double> M_cn, M_r;
-	CalculateBigM(nodes, Q, M_cn, M_r, false);
-		
-    // Variables with size t+1 for flows
-    x = IloNumVarArray (env, t + 1, 0, Q, ILOINT);
-    e = IloNumVarArray (env, t + 1, 0, Q, ILOINT);
-    u = IloNumVarArray (env, t + 1, 0, Q, ILOINT);
-	constraints.add(u[0] == 0); //No uncharged from the depot
-	
-	x_dep = IloNumVarArray (env, t-1, 0, Q, ILOINT);
-	e_dep = IloNumVarArray (env, t-1, 0, Q, ILOINT);
-
-    // Variables with size t for weights and decisions
-    wX_minus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    wX_plus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    wE_minus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    wE_plus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    y = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    z = IloNumVarArray(env, t, 0, Q, ILOINT);
-	
-	// Variables to choose between cost policies
-	b = IloNumVarArray(env, t-1, 0, 1, ILOINT);
-	//Resources released later with env.end() ...
-	IloExpr hard_b_constraint(env);
-	for(int i=0;i<t-1;i++)
-		hard_b_constraint += b[i];
-	//constraints.add( hard_b_constraint <= 1 );	
-	
-	// Variables for the objective
-	F = IloNumVarArray(env, t, -IloInfinity, IloInfinity, ILOFLOAT);
-
-    // Objective function
-    IloExpr objective(env);
-	for (int i=0;i<t;i++)
-		objective += F[i];
-	model.add(IloMinimize(env, objective));
-    objective.end();
-	
-	//Cost restricting constraints
-	Node * first = nodes[1];
-	IloConstraint continue_first;
-	if(first->is_chargeable)
-		continue_first = 0 == -F[0] + wX_plus[0] + wX_minus[0] + wE_plus[0] + wE_minus[0] - z[0];	
-	else 
-		continue_first = 0 == -F[0] + wX_plus[0] + wX_minus[0] + wE_plus[0] + wE_minus[0] + first->h_u_i0 - y[0] + z[0];
-	constraints.add(continue_first);
-	
-	//Continue-to-next cost restricting
-	for (int i=1;i<t;i++)
-	{
-		IloConstraint continue_lb; IloConstraint continue_ub;	
-		Node * n = nodes[i+1]; // weird ...
-		if(n->is_chargeable)
-		{
-			continue_lb = 0 >= -F[i] + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i] - z[i] - M_cn[i-1]*b[i-1];
-			continue_ub = 0 <= -F[i] + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i] - z[i] + M_cn[i-1]*b[i-1];
-		} else {
-			continue_lb = 0 >= -F[i] + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i] + n->h_u_i0 - y[i] + z[i] - M_cn[i-1]*b[i-1];
-			continue_ub = 0 <= -F[i] + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i] + n->h_u_i0 - y[i] + z[i] + M_cn[i-1]*b[i-1];
-		
-		}		
-		constraints.add(continue_lb);
-		constraints.add(continue_ub);
-	}
-	//Original WRONG management of restocks
-	//for (int i = 1; i < t; i++)
-	//{
-	//	Node * curr = nodes[i]; Node * dep = nodes[0]; Node * next = nodes[i+1];
-	//	double r = prob->GetDist(curr, dep) + prob->GetDist(dep, next) - prob->GetDist(curr, next);
-	//	double sum_dist = 0.0;
-	//	for (int j = 1; j < i; j++)
-	//		sum_dist += prob->GetDist(nodes[j-1], nodes[j]);
-	//	if (r + sum_dist > Parameters::MaxRouteDistance())
-	//		constraints.add(b[i-1] == 0);		
-	//}
-	
-	// Restock feasibility (distance constraint)
-	double base_dist = 0.0;
-	for (int i = 1; i < t; ++i)
-		base_dist += prob->GetDist(nodes[i], nodes[i - 1]);
-
-	IloExpr restockDist(env);
-	for (int i = 1; i < t; ++i) 
-	{
-		double delta = prob->GetDist(nodes[i], nodes[0]) + prob->GetDist(nodes[0], nodes[i + 1]) - prob->GetDist(nodes[i], nodes[i + 1]);
-		restockDist += delta * b[i - 1];
-	}
-	constraints.add(base_dist + restockDist <= Parameters::MaxRouteDistance());
-	restockDist.end();
-	
-	//IfThen constraints
-    constraints.add(-x[0] + x[1] + wX_plus[0] - wX_minus[0] == first->q);
-    constraints.add(-e[0] + e[1] + wE_plus[0] - wE_minus[0] == first->q_e);
-    constraints.add(-u[0] + u[1] + z[0] - y[0] == 0);	
-	
-	//Continue-to-next Flow constraints
-	for (int i = 1; i < t; i++) 
-	{
-		Node* n = nodes[i];
-
-		IloConstraint cn  = (b[i - 1] == 0);
-		
-		// Flow balance of regular CN
-		IloConstraint CnFlowR = -x[i - 1] + x[i] + wX_plus[i - 1] - wX_minus[i - 1] == n->q;
-		IloConstraint ifCnR = IloIfThen(env, cn, CnFlowR);
-		constraints.add(ifCnR);
-
-		// Flow balance of electric CN
-		IloConstraint CnFlowE = -e[i - 1] + e[i] + wE_plus[i - 1] - wE_minus[i - 1] == n->q_e;
-		IloConstraint ifCnE = IloIfThen(env, cn, CnFlowE);
-		constraints.add(ifCnE);
-
-		// Flow balance of uncharged CN
-		IloConstraint CnFlowU = u[i] + z[i - 1] - y[i - 1] - u[i - 1] == 0;
-		IloConstraint ifCnU = IloIfThen(env, cn, CnFlowU);
-		constraints.add(ifCnU);
-
-		if(i == t-1)
-		{
-			Node* lastNode = nodes[nodes.size()-2];
-			constraints.add(IloIfThen(env,cn,-x[t - 1] + x[t] + wX_plus[t - 1] - wX_minus[t - 1] == lastNode->q));
-			constraints.add(IloIfThen(env,cn,-e[t - 1] + e[t] + wE_plus[t - 1] - wE_minus[t - 1] == lastNode->q_e));
-			constraints.add(IloIfThen(env,cn,u[t] + z[t - 1] - y[t - 1] - u[t - 1] == 0));
-		}		
-
-	}
-	//Node* lastNode = nodes[nodes.size()-2];
-    //constraints.add(-x[t - 1] + x[t] + wX_plus[t - 1] - wX_minus[t - 1] == lastNode->q);
-    //constraints.add(-e[t - 1] + e[t] + wE_plus[t - 1] - wE_minus[t - 1] == lastNode->q_e);
-	//constraints.add(u[t] + z[t - 1] - y[t - 1] - u[t - 1] == 0);
-
-	//Restock Flow constraints
-	for (int i = 1; i < t; i++)
-	{
-		IloConstraint rst = (b[i - 1] == 1);
-		
-		Node * n = nodes[i+1]; //Restock flows affect the 2nd visit and above ...
-	
-		// Flow balance of regular Restock
-		IloConstraint RFlowR = -x_dep[i-1] + x[i] + wX_plus[i] - wX_minus[i] == n->q;
-		IloConstraint ifRR = IloIfThen(env, rst, RFlowR);
-		constraints.add(ifRR);
-		
-		// Flow balance of electric Restock
-		IloConstraint RFlowE = -e_dep[i-1] + e[i] + wE_plus[i] - wE_minus[i] == n->q_e;
-		IloConstraint ifRE = IloIfThen(env, rst, RFlowE);
-		constraints.add(ifRE);
-
-		// Flow balance of uncharged Restock
-		IloConstraint RFlowU = u[i+1]-y[i] == 0;
-		IloConstraint ifRU = IloIfThen(env, rst, RFlowU);
-		constraints.add(ifRU);		
-	}
-	
-    // Capacity constraints
-	for (int i = 0; i < t; i++)
-	{
-		Node* n = nodes[i + 1];
-
-		// z[i] - u[i] <= 0
-		IloConstraint zu_constraint = z[i] - u[i] <= 0;
-		constraints.add(zu_constraint);
-
-		// wX_minus[i] + wE_minus[i] + z[i] <= maxWm
-		IloConstraint maxWm_constraint = wX_minus[i] + wE_minus[i] + z[i] <= n->maxWm;
-		constraints.add(maxWm_constraint);
-
-		// wX_plus[i] <= h_i0
-		IloConstraint h_i0_constraint = wX_plus[i] <= n->h_i0;
-		constraints.add(h_i0_constraint);
-
-		// wE_plus[i] <= h_e_i0
-		IloConstraint h_e_i0_constraint = wE_plus[i] <= n->h_e_i0;
-		constraints.add(h_e_i0_constraint);
-
-		// y[i] <= h_u_i0
-		IloConstraint h_u_i0_constraint = y[i] <= n->h_u_i0;
-		constraints.add(h_u_i0_constraint);
-	}
-	
-	// Vehicle capacity constraints : Continue-to-next and Restock
-	constraints.add(x[0] + e[0] + u[0] <= Q);
-	for (int i = 1; i < t; i++)
-	{
-		IloConstraint capCn = (x[i] + e[i] + u[i] <= Q);
-		constraints.add(capCn);
-		
-		IloConstraint capRst = x_dep[i-1] + e_dep[i-1] <= Q;			
-		constraints.add(capRst);
-	}
-	//After the final visit:	
-	constraints.add(x[t] + e[t] + u[t] <= Q);	
- 
-    model.add(constraints);
-
-    // Solve the model
-	cplex_restock = IloCplex(env);
-    cplex_restock.extract(model);
-	cplex_restock.setParam(IloCplex::Param::Threads, 1);
-	cplex_restock.setOut(env.getNullStream());
-	cplex_restock.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0);
-	//double UB = CalculateContinueToNextMIP(nodes, Q, delta);
-	//cplex_restock.setParam(IloCplex::Param::MIP::Tolerances::UpperCutoff, UB + 0.01);	
-		
-    if (!cplex_restock.solve()) 
-        return 999999.0; 
-
-    return cplex_restock.getObjValue();
-}
-
-//To compute the cost
-double RouteFeasibility::CalculateRestockingTripsBigM(std::vector<Node*>& nodes, int Q, int delta, IloEnv env)
-{
-	int t =  nodes.size() - 2;
-	if(t < 1) return 0.0;
-	
-    model = IloModel(env);
-    constraints = IloConstraintArray(env);
-	
-	std::vector<double> M_cn, M_r;
-	CalculateBigM(nodes, Q, M_cn, M_r, false);
-
-    //x = IloNumVarArray(env, t + 1, 0, Q, ILOINT);
-    //e = IloNumVarArray(env, t + 1, 0, Q, ILOINT);
-    //u = IloNumVarArray(env, t + 1, 0, Q, ILOINT);
-    x = IloNumVarArray(env, t + 1, 0, Q, ILOFLOAT);
-    e = IloNumVarArray(env, t + 1, 0, Q, ILOFLOAT);
-    u = IloNumVarArray(env, t + 1, 0, Q, ILOFLOAT);	
-	constraints.add(u[0] == 0);
-
-	x_dep = IloNumVarArray(env, t-1, 0, Q, ILOFLOAT);
-	e_dep = IloNumVarArray(env, t-1, 0, Q, ILOFLOAT);
-	//x_dep = IloNumVarArray(env, t-1, 0, Q, ILOINT);
-	//e_dep = IloNumVarArray(env, t-1, 0, Q, ILOINT);
-
-    wX_minus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    wX_plus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    wE_minus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    wE_plus = IloNumVarArray(env, t, 0, IloInfinity, ILOINT);
-    y = IloNumVarArray(env, t, 0, Q, ILOINT);
-    z = IloNumVarArray(env, t, 0, Q, ILOINT);
-
-	b = IloNumVarArray(env, t-1, 0, 1, ILOINT);
-	IloExpr hard_b_constraint(env);
-	for(int i=0;i<t-1;i++)
-		hard_b_constraint += b[i];
-	//constraints.add( hard_b_constraint <= 6 );	
-
-	F = IloNumVarArray(env, t, -IloInfinity, IloInfinity, ILOFLOAT);
-
-
-	/*for (int i = 0; i <= t; ++i) {
-		x[i].setName(("x_" + std::to_string(i)).c_str());
-		e[i].setName(("flowE_" + std::to_string(i)).c_str());
-		u[i].setName(("u_" + std::to_string(i)).c_str());
-	}
-
-
-	for (int i = 0; i < t-1; ++i) {
-		x_dep[i].setName(("x_dep_" + std::to_string(i)).c_str());
-		e_dep[i].setName(("flowE_dep_" + std::to_string(i)).c_str());
-	}
-
-
-	for (int i = 0; i < t; ++i) {
-		wX_minus[i].setName(("wX_minus_" + std::to_string(i)).c_str());
-		wX_plus[i].setName(("wX_plus_" + std::to_string(i)).c_str());
-		wE_minus[i].setName(("wE_minus_" + std::to_string(i)).c_str());
-		wE_plus[i].setName(("wE_plus_" + std::to_string(i)).c_str());
-		y[i].setName(("y_" + std::to_string(i)).c_str());
-		z[i].setName(("z_" + std::to_string(i)).c_str());
-	}
-
-
-	for (int i = 0; i < t-1; ++i)
-		b[i].setName(("b_" + std::to_string(i)).c_str());
-
-
-	for (int i = 0; i < t; ++i)
-		F[i].setName(("F_" + std::to_string(i)).c_str());*/
-
-
-	IloExpr objective(env);
-	for (int i = 0; i < t; i++)
-		objective += F[i];
-	model.add(IloMinimize(env, objective));
-	objective.end();
-
-	Node* first = nodes[1];
-	IloConstraint continue_first;
-	if(first->is_chargeable)
-		continue_first = -F[0] + wX_plus[0] + wX_minus[0] + wE_plus[0] + wE_minus[0] - z[0] == 0;
-	else
-		continue_first = -F[0] + wX_plus[0] + wX_minus[0] + wE_plus[0] + wE_minus[0] + first->h_u_i0 - y[0] + z[0] == 0;
-	constraints.add(continue_first);
-
-	for (int i = 1; i < t; i++)
-	{
-		Node* n = nodes[i + 1];
-
-		IloExpr expr = -F[i] + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i];
-		if (!n->is_chargeable)
-			expr += n->h_u_i0 - y[i] + z[i];
-		else expr += - z[i];
-
-		constraints.add(expr >= -M_cn[i-1] * b[i-1]);
-		constraints.add(expr <=  M_cn[i-1] * b[i-1]);
-		expr.end();
-	}
-
-	//Original WRONG management of restocks
-	//for (int i = 1; i < t; i++)
-	//{
-	//	Node * curr = nodes[i]; Node * dep = nodes[0]; Node * next = nodes[i+1];
-	//	double r = prob->GetDist(curr, dep) + prob->GetDist(dep, next) - prob->GetDist(curr, next);
-	//	double sum_dist = 0.0;
-	//	for (int j = 1; j < i; j++)
-	//		sum_dist += prob->GetDist(nodes[j-1], nodes[j]);
-	//	if (r + sum_dist > Parameters::MaxRouteDistance())
-	//		constraints.add(b[i-1] == 0);		
-	//}
-	
-	// Restock feasibility (distance constraint)
-	double base_dist = 0.0;
-	for (int i = 1; i < t; ++i)
-		base_dist += prob->GetDist(nodes[i], nodes[i - 1]);
-
-	IloExpr restockDist(env);
-	for (int i = 1; i < t; ++i) 
-	{
-		double delta = prob->GetDist(nodes[i], nodes[0]) + prob->GetDist(nodes[0], nodes[i + 1]) - prob->GetDist(nodes[i], nodes[i + 1]);
-		restockDist += delta * b[i - 1];
-	}
-	constraints.add(base_dist + restockDist <= Parameters::MaxRouteDistance());
-	restockDist.end();	
-
-	// Initial flows
-	constraints.add(-x[0] + x[1] + wX_plus[0] - wX_minus[0] == first->q);
-	constraints.add(-e[0] + e[1] + wE_plus[0] - wE_minus[0] == first->q_e);
-	constraints.add(-u[0] + u[1] + z[0] - y[0] == 0);
-
-	// Big-M flows for Continue and Restock
-	for (int i = 1; i < t; i++)
-	{
-		Node* n = nodes[i];
-		int bi = i - 1;
-
-		// Continue
-		constraints.add(-x[bi] + x[i] + wX_plus[bi] - wX_minus[bi] - n->q <= Q * b[bi]);
-		constraints.add(-x[bi] + x[i] + wX_plus[bi] - wX_minus[bi] - n->q >= -Q * b[bi]);
-
-		constraints.add(-e[bi] + e[i] + wE_plus[bi] - wE_minus[bi] - n->q_e <= Q * b[bi]);
-		constraints.add(-e[bi] + e[i] + wE_plus[bi] - wE_minus[bi] - n->q_e >= -Q * b[bi]);
-
-		constraints.add(u[i] + z[bi] - y[bi] - u[bi] <= Q * b[bi]);
-		constraints.add(u[i] + z[bi] - y[bi] - u[bi] >= -Q * b[bi]);
-
-		if(i == t - 1)
-		{
-			Node* lastNode = nodes[nodes.size() - 2];
-			constraints.add(-x[t - 1] + x[t] + wX_plus[t - 1] - wX_minus[t - 1] - lastNode->q <= Q * b[bi]);
-			constraints.add(-x[t - 1] + x[t] + wX_plus[t - 1] - wX_minus[t - 1] - lastNode->q >= -Q * b[bi]);
-			constraints.add(-e[t - 1] + e[t] + wE_plus[t - 1] - wE_minus[t - 1] - lastNode->q_e <= Q * b[bi]);
-			constraints.add(-e[t - 1] + e[t] + wE_plus[t - 1] - wE_minus[t - 1] - lastNode->q_e >= -Q * b[bi]);
-			constraints.add(u[t] + z[t - 1] - y[t - 1] - u[t - 1] <= Q * b[bi]);
-			constraints.add(u[t] + z[t - 1] - y[t - 1] - u[t - 1] >= -Q * b[bi]);
-		}
-
-		// Restock
-		Node* next = nodes[i+1];
-
-		constraints.add(-x_dep[bi] + x[i] + wX_plus[i] - wX_minus[i] - next->q <= Q * (1 - b[bi]));
-		constraints.add(-x_dep[bi] + x[i] + wX_plus[i] - wX_minus[i] - next->q >= -Q * (1 - b[bi]));
-
-		constraints.add(-e_dep[bi] + e[i] + wE_plus[i] - wE_minus[i] - next->q_e <= Q * (1 - b[bi]));
-		constraints.add(-e_dep[bi] + e[i] + wE_plus[i] - wE_minus[i] - next->q_e >= -Q * (1 - b[bi]));
-
-		constraints.add(u[i+1] - y[i] <= Q * (1 - b[bi]));
-		constraints.add(u[i+1] - y[i] >= -Q * (1 - b[bi]));
-	}
-
-	// Missed request constraints
-	for (int i = 0; i < t; i++)
-	{
-		Node* n = nodes[i + 1];
-		constraints.add(z[i] <= u[i]);
-		constraints.add(wX_minus[i] + wE_minus[i] + z[i] <= n->maxWm);
-		constraints.add(wX_plus[i] <= n->h_i0);
-		constraints.add(wE_plus[i] <= n->h_e_i0);
-		constraints.add(y[i] <= n->h_u_i0);
-	}
-
-	// Capacity
-	constraints.add(x[0] + e[0] + u[0] <= Q);
-	for (int i = 1; i < t; i++)
-	{
-		constraints.add(x[i] + e[i] + u[i] <= Q);
-		constraints.add(x_dep[i-1] + e_dep[i-1] <= Q );
-	}
-	constraints.add(x[t] + e[t] + u[t] <= Q);
-
-	model.add(constraints);
-
-	cplex_restock = IloCplex(env);
-    cplex_restock.extract(model);
-	cplex_restock.setParam(IloCplex::Param::Threads, 1);
-	cplex_restock.setOut(env.getNullStream());
-	cplex_restock.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, 0);
-	cplex_restock.setParam(IloCplex::Param::RootAlgorithm, IloCplex::Dual); //or Dual
-	cplex_restock.setParam(IloCplex::NodeAlg, IloCplex::Dual); //or Dual	
-	//double UB = CalculateContinueToNextMIP(nodes, Q, delta);
-	//cplex_restock.setParam(IloCplex::Param::MIP::Tolerances::UpperCutoff, UB + 0.01);	
-
-	if (!cplex_restock.solve())
-		return 999999.0;
-	
-	/*if(_show)
-	{
-		restocked = false; nb_restocks = 0;
-		for (int i = 0; i < t-1; i++)
-			if((int)(cplex.getValue(b[i]) + 0.1)) 
-			{
-				restocked = true; nb_restocks++;
-			}	
-			
-		cplex.exportModel("bigM.lp");
-		printf("BigM cplex optimal values ... Restock cost:%.1lf restocked:%d nb_restocks:%d\n",(double)cplex.getObjValue(),restocked,nb_restocks);
-		printf("M_cn:\n");
-		for(size_t i =0;i<M_cn.size();i++)
-			printf("%.1lf-",M_cn[i]);
-		printf("\n");
-		printf("M_r:\n");
-		for(size_t i =0;i<M_r.size();i++)
-			printf("%.1lf-",M_r[i]);
-		printf("\n");		
-		for (int i = 0; i < t-1; i++)
-			std::cout << "b[" << i << "] = " << cplex.getValue(b[i]) << ", ";
-		printf("\n");
-		for (int i = 0; i < t; i++)
-			std::cout << "F[" << i << "] = " << std::setprecision(2) << cplex.getValue(F[i]) << ", ";
-		printf("\n");
-		for (int i = 0; i < t-1; i++)
-		{
-			std::cout << "xDep[" << i << "] = " << (int)cplex.getValue(x_dep[i]) << ", ";
-			std::cout << "eDep[" << i << "] = " << (int)cplex.getValue(e_dep[i]) << std::endl;			
-		}
-		
-		for (int i = 0; i <= t; ++i) {
-			std::cout << "x[" << i << "] = " << (int)cplex.getValue(x[i]) << ", ";
-			std::cout << "e[" << i << "] = " << (int)cplex.getValue(e[i]) << ", ";
-			std::cout << "u[" << i << "] = " << (int)cplex.getValue(u[i]) << std::endl;
-		}
-		
-		// t variables
-		for (int i = 0; i < t; ++i) {
-			std::cout << "wX_minus[" << i << "] = " << (int)cplex.getValue(wX_minus[i]) << ", ";
-			std::cout << "wX_plus[" << i << "] = " << (int)cplex.getValue(wX_plus[i]) << ", ";
-
-			std::cout << "wE_minus[" << i << "] = " << (int)cplex.getValue(wE_minus[i]) << ", ";
-			std::cout << "wE_plus[" << i << "] = " << (int)cplex.getValue(wE_plus[i]) << ", ";
-			
-			std::cout << "y[" << i << "] = " << (int)cplex.getValue(y[i]) << ", ";
-			std::cout << "z[" << i << "] = " << (int)cplex.getValue(z[i]) << std::endl;
-		}
-		if(restocked)
-		{
-			printf("Restocked! check for silent bugs ....\n"); //getchar();
-		}	
-	}*/
-	
-	return cplex_restock.getObjValue();	
-}
-
-//To compute the cost
+//To compute the cost - working version!
 double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, int Q, int delta, IloEnv env)
 {
 	int t = nodes.size() - 2;
-	if (t < 1) return 0.0;
+	if (t <= 1) return 0.0;
 
 	model = IloModel(env);
 	constraints = IloConstraintArray(env);
@@ -592,29 +108,6 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 	IloNumVarArray b(env, t - 1, 0, 1, ILOINT);
 	IloNumVarArray F(env, t, -IloInfinity, IloInfinity, ILOFLOAT);
 
-	/*for (int i = 0; i <= t; ++i) {
-		x[i].setName(("x_" + std::to_string(i)).c_str());
-		e[i].setName(("flowE_" + std::to_string(i)).c_str());
-		u[i].setName(("u_" + std::to_string(i)).c_str());
-	}
-	for (int i = 0; i < t - 1; ++i) {
-		lX[i].setName(("lX_" + std::to_string(i)).c_str());
-		lE[i].setName(("lE_" + std::to_string(i)).c_str());
-		mX[i].setName(("mX_" + std::to_string(i)).c_str());
-		mE[i].setName(("mE_" + std::to_string(i)).c_str());
-		mU[i].setName(("mU_" + std::to_string(i)).c_str());
-		b[i].setName(("b_" + std::to_string(i)).c_str());
-	}
-	for (int i = 0; i < t; ++i) {
-		wX_minus[i].setName(("wXminus_" + std::to_string(i)).c_str());
-		wX_plus[i].setName(("wXplus_" + std::to_string(i)).c_str());
-		wE_minus[i].setName(("wEminus_" + std::to_string(i)).c_str());
-		wE_plus[i].setName(("wEplus_" + std::to_string(i)).c_str());
-		y[i].setName(("y_" + std::to_string(i)).c_str());
-		z[i].setName(("z_" + std::to_string(i)).c_str());
-		F[i].setName(("F_" + std::to_string(i)).c_str());
-	}*/
-
 	IloExpr objective(env);
 	for (int i = 0; i < t; i++)
 		objective += F[i];
@@ -628,31 +121,6 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 	else
 		continue_first = -F[0] + wX_plus[0] + wX_minus[0] + wE_plus[0] + wE_minus[0] + first->h_u_i0 - y[0] + z[0] == 0;
 	constraints.add(continue_first);
-
-	/*for (int i = 1; i < t; i++)
-	{
-		Node* n = nodes[i + 1];
-
-		IloExpr expr = -F[i] + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i];
-		if (!n->is_chargeable)
-			expr += n->h_u_i0 - y[i] + z[i];
-		else expr += - z[i];
-
-		constraints.add(expr >= -M_cn[i-1] * b[i-1]);
-		constraints.add(expr <=  M_cn[i-1] * b[i-1]);
-		expr.end();
-	}
-
-	for (int i = 1; i < t; i++)
-	{
-		Node * curr = nodes[i]; Node * dep = nodes[0]; Node * next = nodes[i+1];
-		double r = prob->GetDist(curr, dep) + prob->GetDist(dep, next) - prob->GetDist(curr, next);
-
-		IloExpr expr = -F[i] + r + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i] + next->h_u_i0 - y[i];
-		constraints.add(expr >= -M_r[i-1] * (1 - b[i-1]));
-		constraints.add(expr <=  M_r[i-1] * (1 - b[i-1]));
-		expr.end();
-	}*/
 	
 	for (int i = 1; i < t; i++)
 	{
@@ -671,9 +139,6 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 		IloExpr expr_R(env);
 		expr_R = r + wX_plus[i] + wX_minus[i] + wE_plus[i] + wE_minus[i] + next->h_u_i0 - y[i];
 
-		// Reformulated cost constraint using delta = expr_R - expr_C
-		//IloExpr delta(env);
-		//delta = expr_R - expr_C;
 
 		constraints.add(F[i] == (1-b[i-1])*expr_C + b[i-1] * expr_R);
 
@@ -681,18 +146,6 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 		expr_R.end();
 		//delta.end();
 	}
-
-	//Original WRONG management of restocks
-	//for (int i = 1; i < t; i++)
-	//{
-	//	Node * curr = nodes[i]; Node * dep = nodes[0]; Node * next = nodes[i+1];
-	//	double r = prob->GetDist(curr, dep) + prob->GetDist(dep, next) - prob->GetDist(curr, next);
-	//	double sum_dist = 0.0;
-	//	for (int j = 1; j < i; j++)
-	//		sum_dist += prob->GetDist(nodes[j-1], nodes[j]);
-	//	if (r + sum_dist > Parameters::MaxRouteDistance())
-	//		constraints.add(b[i-1] == 0);		
-	//}
 	
 	// Restock feasibility (distance constraint)
 	double base_dist = 0.0;
@@ -702,17 +155,23 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 	IloExpr restockDist(env);
 	for (int i = 1; i < t; ++i) 
 	{
-		double delta = prob->GetDist(nodes[i], nodes[0]) + prob->GetDist(nodes[0], nodes[i + 1]) - prob->GetDist(nodes[i], nodes[i + 1]);
-		restockDist += delta * b[i - 1];
+		double delta_dist = prob->GetDist(nodes[i], nodes[0]) + prob->GetDist(nodes[0], nodes[i + 1]) - prob->GetDist(nodes[i], nodes[i + 1]);
+		restockDist += delta_dist * b[i - 1];
 	}
-	constraints.add(base_dist + restockDist <= Parameters::MaxRouteDistance());
+	constraints.add(base_dist + restockDist <= Parameters::MaxRouteDistance()); 
 	restockDist.end();
+	
+	if(base_dist > Parameters::MaxRouteDistance())//This will lead to infeasible solutions, different to CN that does not have this constraint
+		return 999999.0;
+		
 	
 	// Initial flows
 	constraints.add(-x[0] + x[1] + wX_plus[0] - wX_minus[0] == first->q);
 	constraints.add(-e[0] + e[1] + wE_plus[0] - wE_minus[0] == first->q_e);
 	constraints.add(-u[0] + u[1] + z[0] - y[0] == 0);
+	
 	//wX_minus[1], wX_plus[1] are from the second node!
+	// Constraints are linked to the t-1 restock decisions
 	for (int i = 2; i < t; ++i) {
 		Node* node = nodes[i];
 		
@@ -731,29 +190,17 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 		//u[1] = u[0] - z[0] + y[0] - mU[0]
 		constraints.add( u[i-1] == u[i-2] - z[i-2] + y[i-2] - mU[i-2] ); 
 	}
-
-	// Flows at the last node i = t
-	{
-		Node* lastNode = nodes[t];
-		int i = t;
-
-		constraints.add(-x[i - 1] + x[i] + wX_plus[i - 1] - wX_minus[i - 1] == lastNode->q);
-		constraints.add(-e[i - 1] + e[i] + wE_plus[i - 1] - wE_minus[i - 1] == lastNode->q_e);
-		constraints.add(u[i] + z[i - 1] - y[i - 1] - u[i - 1] == 0);
-	}
-
+	//Last restock decisions
+	constraints.add( x[t] == nodes[t]->q + x[t-1] + wX_minus[t-1] - wX_plus[t-1] + lX[t-2] );
+	constraints.add( x[t-1] == nodes[t-1]->q +x[t-2] + wX_minus[t-2] - wX_plus[t-2] - mX[t-2] );
+	constraints.add( e[t] == nodes[t]->q_e+ e[t-1] + wE_minus[t-1] - wE_plus[t-1] + lE[t-2] );
+	constraints.add( e[t-1] == nodes[t-1]->q_e + e[t-2] + wE_minus[t-2] - wE_plus[t-2] - mE[t-2] );
+	constraints.add( u[t] == u[t-1] + y[t-1] - z[t-1] - mE[t-2] );
 
 	// Logic constraints
 	for (int i = 0; i < t - 1; ++i) {
-		constraints.add(lX[i] <= Q * b[i]);
-		constraints.add(lE[i] <= Q * b[i]);
-		constraints.add(mX[i] <= Q * b[i]);
-		constraints.add(mE[i] <= Q * b[i]);
-
-		// Uncharged logic
-		//constraints.add( mU[i] == u[i]*(b[i]) );
-		constraints.add(mU[i] >= u[i] - Q * (1 - b[i]));
-		constraints.add(mU[i] <= u[i]);
+		constraints.add( lX[i] + lE[i] <= Q * b[i] );
+		constraints.add( mX[i] + mE[i] + mU[i] <= Q * b[i] );
 	}
 
 	// Missed requests and station limits
@@ -769,14 +216,45 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 	// Capacity constraints
 	for (int i = 0; i <= t; ++i)
 		constraints.add(x[i] + e[i] + u[i] <= Q);
-	for (int i = 0; i < t - 1; ++i)
-		constraints.add(lX[i] + lE[i] <= Q);
+	//for (int i = 0; i < t - 1; ++i)
+	//	constraints.add(lX[i] + lE[i] <= Q);
+	
+	if(_show)
+	{
+		// Variable names
+		for (int i = 0; i <= t; ++i) {
+			x[i].setName(("x_" + std::to_string(i)).c_str());
+			e[i].setName(("flowE_" + std::to_string(i)).c_str());
+			u[i].setName(("u_" + std::to_string(i)).c_str());
+		}
+
+		for (int i = 0; i < t - 1; ++i) {
+			lX[i].setName(("lX_" + std::to_string(i)).c_str());
+			lE[i].setName(("lE_" + std::to_string(i)).c_str());
+			mX[i].setName(("mX_" + std::to_string(i)).c_str());
+			mE[i].setName(("mE_" + std::to_string(i)).c_str());
+			mU[i].setName(("mU_" + std::to_string(i)).c_str());
+			b[i].setName(("b_" + std::to_string(i)).c_str());
+		}
+
+		for (int i = 0; i < t; ++i) {
+			wX_minus[i].setName(("wmX_" + std::to_string(i)).c_str());
+			wX_plus[i].setName(("wpX_" + std::to_string(i)).c_str());
+			wE_minus[i].setName(("wmE_" + std::to_string(i)).c_str());
+			wE_plus[i].setName(("wpE_" + std::to_string(i)).c_str());
+			y[i].setName(("y_" + std::to_string(i)).c_str());
+			z[i].setName(("z_" + std::to_string(i)).c_str());
+			F[i].setName(("F_" + std::to_string(i)).c_str());
+		}		
+	}
 
 	model.add(constraints);
 	
 	cplex_restock = IloCplex(model);
 	cplex_restock.setParam(IloCplex::Param::Threads, 1);
 	cplex_restock.setOut(env.getNullStream());
+	if(_show)
+		cplex_restock.exportModel("restockLM.lp");
 	//If you have non-linearities, you need the barrier algorithm
 	//cplex_restock.setParam(IloCplex::Param::RootAlgorithm, IloCplex::Dual); //or Dual
 	//cplex_restock.setParam(IloCplex::NodeAlg, IloCplex::Dual); //or Dual
@@ -796,18 +274,24 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 	
 	if (_show)
 	{
-		cplex_restock.exportModel("restockLM.lp");
+		
 		printf("LM cplex optimal values ... Restock cost: %.1lf restocked: %d nb_restocks: %d\n",
 			(double)cplex_restock.getObjValue(), restocked, nb_restocks);
+		//if(restocked)
+		//	exit(1);
+		total_nb_restock = 0; total_nb_missed_bikes = 0; total_picked_uncharged_bikes = 0; total_delivered_uncharged_bikes = 0;
+		total_restock_distance = 0.0;	
 		
-		printf("restock distances:\n");
-		for (int i = 1; i < t; i++)
-		{
-			Node * curr = nodes[i]; Node * dep = nodes[0]; Node * next = nodes[i+1];
-			double r = prob->GetDist(curr, dep) + prob->GetDist(dep, next) - prob->GetDist(curr, next);
-			printf("%.1lf-",r);
-		}
-		printf("\n");
+		//printf("restock distances:\n");
+		//for (int i = 1; i < t; i++)
+		//{
+		//	Node * curr = nodes[i]; Node * dep = nodes[0]; Node * next = nodes[i+1];
+		//	double r = prob->GetDist(curr, dep) + prob->GetDist(dep, next) - prob->GetDist(curr, next);
+		//	printf("%.1lf-",r);
+		//	if((int)(cplex_restock.getValue(b[i-1]) + 0.1))
+		//		total_restock_distance += r;
+		//}
+		//printf("\n");
 
 		for (int i = 0; i < t - 1; i++)
 			std::cout << "b[" << i << "] = " << cplex_restock.getValue(b[i]) << ", ";
@@ -838,6 +322,11 @@ double RouteFeasibility::CalculateRestockingTripsLM(std::vector<Node*>& nodes, i
 			std::cout << "wE_plus[" << i << "] = " << (int)cplex_restock.getValue(wE_plus[i]) << ", ";
 			std::cout << "y[" << i << "] = " << (int)cplex_restock.getValue(y[i]) << ", ";
 			std::cout << "z[" << i << "] = " << (int)cplex_restock.getValue(z[i]) << std::endl;
+			
+			total_nb_missed_bikes += ((int)cplex_restock.getValue(wX_minus[i]) + (int)cplex_restock.getValue(wX_plus[i])
+									+ (int)cplex_restock.getValue(wE_minus[i]) + (int)cplex_restock.getValue(wE_plus[i]));
+			total_picked_uncharged_bikes += (int)cplex_restock.getValue(y[i]);
+			total_delivered_uncharged_bikes += (int)cplex_restock.getValue(z[i]);
 		}
 
 		if (restocked)
@@ -913,6 +402,25 @@ int RouteFeasibility::CalculateContinueToNextMIP(std::vector<Node*>& nodes, int 
     model.add(x[t] + e[t] + u[t] <= Q);
     model.add(u[0] == 0);
 
+	if(_show)
+	{
+		// Variable names
+		for (int i = 0; i <= t; ++i) {
+			x[i].setName(("x_" + std::to_string(i)).c_str());
+			e[i].setName(("flowE_" + std::to_string(i)).c_str());
+			u[i].setName(("u_" + std::to_string(i)).c_str());
+		}
+
+		for (int i = 0; i < t; ++i) {
+			wX_minus[i].setName(("wmX_" + std::to_string(i)).c_str());
+			wX_plus[i].setName(("wpX_" + std::to_string(i)).c_str());
+			wE_minus[i].setName(("wmE_" + std::to_string(i)).c_str());
+			wE_plus[i].setName(("wpE_" + std::to_string(i)).c_str());
+			y[i].setName(("y_" + std::to_string(i)).c_str());
+			z[i].setName(("z_" + std::to_string(i)).c_str());
+		}		
+	}
+
     // Solve the LP
     cplex_continue = IloCplex(model);
     cplex_continue.setOut(env.getNullStream());
@@ -921,6 +429,27 @@ int RouteFeasibility::CalculateContinueToNextMIP(std::vector<Node*>& nodes, int 
 	//printf("Printing the lp\n");
     if (!cplex_continue.solve())
         return 999999; 
+
+	if (_show)
+	{
+		cplex_continue.exportModel("continueMIP.lp");
+		printf("continueMIP cost:%d\n",(int)cplex_continue.getObjValue());
+
+		for (int i = 0; i <= t; ++i) {
+			std::cout << "x[" << i << "] = " << (int)cplex_continue.getValue(x[i]) << ", ";
+			std::cout << "e[" << i << "] = " << (int)cplex_continue.getValue(e[i]) << ", ";
+			std::cout << "u[" << i << "] = " << (int)cplex_continue.getValue(u[i]) << std::endl;
+		}
+
+		for (int i = 0; i < t; ++i) {
+			std::cout << "wX_minus[" << i << "] = " << (int)cplex_continue.getValue(wX_minus[i]) << ", ";
+			std::cout << "wX_plus[" << i << "] = " << (int)cplex_continue.getValue(wX_plus[i]) << ", ";
+			std::cout << "wE_minus[" << i << "] = " << (int)cplex_continue.getValue(wE_minus[i]) << ", ";
+			std::cout << "wE_plus[" << i << "] = " << (int)cplex_continue.getValue(wE_plus[i]) << ", ";
+			std::cout << "y[" << i << "] = " << (int)cplex_continue.getValue(y[i]) << ", ";
+			std::cout << "z[" << i << "] = " << (int)cplex_continue.getValue(z[i]) << std::endl;
+		}
+	}
 
 
     return (int)cplex_continue.getObjValue();
@@ -1572,7 +1101,7 @@ int RouteFeasibility::CalculateContinueToNextSW(std::vector<Node*>& nodes, int Q
 double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, int Q, int delta, IloEnv env)
 {
 	int t = nodes.size() - 2;
-	if (t < 1) return 0.0;
+	if (t <= 1) return 0.0;
 
 	model = IloModel(env);
 	constraints = IloConstraintArray(env);
@@ -1663,8 +1192,34 @@ double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, i
 	// Flow constraints
 	constraints.add(-x[0] + x[1] + wX_plus[0] - wX_minus[0] == first->q);
 	constraints.add(-e[0] + e[1] + wE_plus[0] - wE_minus[0] == first->q_e);
-
+	// Constraints are linked to the t-1 restock decisions
 	for (int i = 2; i < t; ++i) {
+		Node* node = nodes[i];
+		
+		//x[2] = x[1] + nodes[2]->q + wX_minus[1] - wX_plus[1] + lX[0]
+		constraints.add( x[i] == x[i-1] + nodes[i]->q + wX_minus[i-1] - wX_plus[i-1] + lX[i-2] );
+		//x[1] = x[0] + nodes[1]->q + wX_minus[0] - wX_plus[0] - mX[0]
+		constraints.add( x[i-1] == x[i-2] + nodes[i-1]->q + wX_minus[i-2] - wX_plus[i-2] - mX[i-2] );
+		
+		//e[2] = e[1] + nodes[2]->q_e + wE_minus[1] - wE_plus[1] + lE[0]
+		constraints.add( e[i] == e[i-1] + nodes[i]->q_e + wE_minus[i-1] - wE_plus[i-1] + lE[i-2] );
+		//e[1] = e[0] + nodes[1]->q_e + wE_minus[0] - wE_plus[0] - mE[0]
+		constraints.add( e[i-1] == e[i-2] + nodes[i-1]->q_e + wE_minus[i-2] - wE_plus[i-2] - mE[i-2] );
+		
+	}
+	//Last restock decisions
+	constraints.add( x[t] == nodes[t]->q + x[t-1] + wX_minus[t-1] - wX_plus[t-1] + lX[t-2] );
+	constraints.add( x[t-1] == nodes[t-1]->q +x[t-2] + wX_minus[t-2] - wX_plus[t-2] - mX[t-2] );
+	constraints.add( e[t] == nodes[t]->q_e+ e[t-1] + wE_minus[t-1] - wE_plus[t-1] + lE[t-2] );
+	constraints.add( e[t-1] == nodes[t-1]->q_e + e[t-2] + wE_minus[t-2] - wE_plus[t-2] - mE[t-2] );
+
+	// Logic constraints
+	for (int i = 0; i < t - 1; ++i) {
+		constraints.add( lX[i] + lE[i] <= Q * b[i] );
+		constraints.add( mX[i] + mE[i] <= Q * b[i] );
+	}	
+
+	/*for (int i = 2; i < t; ++i) {
 		Node* node = nodes[i];
 		Node* prev = nodes[i - 1];
 
@@ -1688,7 +1243,7 @@ double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, i
 		constraints.add(lE[i] <= Q * b[i]);
 		constraints.add(mX[i] <= Q * b[i]);
 		constraints.add(mE[i] <= Q * b[i]);
-	}
+	}*/
 
 	// Missed requests bounds
 	for (int i = 0; i < t; ++i) {
@@ -1702,8 +1257,8 @@ double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, i
 	for (int i = 0; i <= t; ++i)
 		constraints.add(x[i] + e[i] <= Q);
 
-	for (int i = 0; i < t - 1; ++i)
-		constraints.add(lX[i] + lE[i] <= Q);
+	//for (int i = 0; i < t - 1; ++i)
+	//	constraints.add(lX[i] + lE[i] <= Q);
 
 	model.add(constraints);
 
@@ -1877,7 +1432,7 @@ bool RouteFeasibility::HasZeroHCBase(std::vector<Node*>& nodes, int Q, bool show
 	return true;
 }
 
-int RouteFeasibility::CostTwoDemands(std::vector<Node*>& nodes, int Q, int delta)
+/*int RouteFeasibility::CostTwoDemands(std::vector<Node*>& nodes, int Q, int delta)
 {
     int cost = 0;
     int BigM = 9999;
@@ -1961,6 +1516,145 @@ int RouteFeasibility::CostTwoDemands(std::vector<Node*>& nodes, int Q, int delta
     }
     delete[] prev;
     delete[] next;
+
+    return cost;
+}*/
+
+int RouteFeasibility::CostTwoDemands(std::vector<Node*>& nodes, int Q, int delta)
+{
+    const int BigM = 9999;
+    int cost = 0;
+
+    // --- DP tables ---
+    int **prev = new int*[Q+1];
+    int **next = new int*[Q+1];
+    for (int q1 = 0; q1 <= Q; ++q1) {
+        prev[q1] = new int[Q+1];
+        next[q1] = new int[Q+1];
+        for (int q2 = 0; q2 <= Q; ++q2) {
+            prev[q1][q2] = next[q1][q2] = (q1 + q2 > Q) ? BigM : 0;
+        }
+    }
+
+    // --- Feasibility-window accumulators (computed inline with DP) ---
+    // Maintain running gamma/zeta and their min/max over the suffix.
+    int gamma = 0, zeta = 0;
+    int min_gamma = 0, max_zeta = 0;
+
+    int N = (int)nodes.size();
+    std::vector<int> lb_start(N, 0), ub_start(N, Q); // [lb_i, ub_i] per node i
+
+    for (int i = N - 2; i >= 1; --i)
+    {
+        Node *n   = nodes[i];
+        Node *nxt = nodes[i+1];
+
+        if (n->type == NODE_TYPE_CUSTOMER) {
+            const int combined_demand = n->q + n->q_e;
+
+
+            const int gamma_i = std::min(Q, combined_demand + n->maxWm);
+
+
+            int zeta_i = 0;
+            if (Parameters::GetBSSType() == CS) {
+                zeta_i = std::max(-Q, combined_demand - (n->h_i0 + n->h_e_i0));
+            } else { // SW
+                zeta_i = std::max(-Q, combined_demand - (n->h_i0 + n->h_e_i0 + n->h_u_i0));
+            }
+
+
+            gamma -= gamma_i;
+            min_gamma = std::min(min_gamma, gamma);
+
+            zeta  -= zeta_i;
+            max_zeta = std::max(max_zeta, zeta);
+
+
+            int lb_i = gamma - min_gamma;
+            int ub_i = zeta + Q - max_zeta;
+
+            lb_start[i] = std::max(0, lb_i);
+            ub_start[i] = std::min(Q, ub_i);
+
+
+            n->gamma = gamma; n->min_gamma = min_gamma;
+            n->zeta  = zeta;  n->max_zeta = max_zeta;
+            n->is_start_feasible = (lb_start[i] <= ub_start[i]);
+        } else {
+            lb_start[i] = 0;
+            ub_start[i] = Q;
+        }
+
+        for (int q1 = 0; q1 <= Q; ++q1)
+        {
+            for (int q2 = 0; q2 <= Q; ++q2)
+            {
+                if (q1 + q2 > Q) { next[q1][q2] = BigM; continue; }
+
+                // PRUNE current state by feasibility window at node i
+                int L = q1 + q2;
+                if (L < lb_start[i] || L > ub_start[i]) { next[q1][q2] = BigM; continue; }
+
+                int best = BigM;
+
+                if (n->type == NODE_TYPE_CUSTOMER) {
+                    // --- Unloads (w_plus) ---
+                    for (int u1 = 0; u1 <= n->h_i0; ++u1) {
+                        for (int u2 = 0; u2 <= n->h_e_i0; ++u2) {
+                            int nq1 = q1 + n->q   - u1;
+                            int nq2 = q2 + n->q_e - u2;
+                            if (nq1 < 0 || nq2 < 0) continue;
+                            int L2 = nq1 + nq2;
+                            if (L2 > Q) continue;
+
+                            // PRUNE successor state by window at node i+1
+                            if (L2 < lb_start[i+1] || L2 > ub_start[i+1]) continue;
+
+                            best = std::min(best, u1 + u2 + prev[nq1][nq2]);
+                        }
+                    }
+
+                    // --- Loads (w_minus) with joint bound ---
+                    for (int u1 = 0; u1 <= n->maxWm; ++u1) {
+                        int max_u2 = std::min(n->maxWm, n->maxWm - u1);
+                        for (int u2 = 0; u2 <= max_u2; ++u2) {
+                            int nq1 = q1 + n->q   + u1;
+                            int nq2 = q2 + n->q_e + u2;
+                            if (nq1 < 0 || nq2 < 0) continue;
+                            int L2 = nq1 + nq2;
+                            if (L2 > Q) continue;
+
+                            // PRUNE successor state by window at node i+1
+                            if (L2 < lb_start[i+1] || L2 > ub_start[i+1]) continue;
+
+                            best = std::min(best, u1 + u2 + prev[nq1][nq2]);
+                        }
+                    }
+                } else {
+                    best = prev[q1][q2];
+                }
+
+                next[q1][q2] = best;
+            }
+        }
+
+        std::swap(prev, next);
+    }
+
+    // Find minimum over feasible start states (still within triangle)
+    int cost2 = BigM;
+    for (int q1 = 0; q1 <= Q; ++q1)
+        for (int q2 = 0; q2 <= Q; ++q2)
+            if (q1 + q2 <= Q)
+                cost2 = std::min(cost2, prev[q1][q2]);
+
+    cost += cost2;
+
+    // cleanup
+    for (int q1 = 0; q1 <= Q; ++q1) 
+	{ delete[] prev[q1]; delete[] next[q1]; }
+    delete[] prev; delete[] next;
 
     return cost;
 }
