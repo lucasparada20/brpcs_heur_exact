@@ -173,11 +173,17 @@ int main(int argc, char ** argv)
 	if(strcmp(Parameters::GetConstructionHeuristic(),"SEQ")==0)
 		alns.AddInsertOperator(&seq);
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG2")==0)
-		alns.AddInsertOperator(&regret_2);
+	{
+		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_2);
+	}
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG3")==0)
-		alns.AddInsertOperator(&regret_3);
+	{
+		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_3);
+	}
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG4")==0)
-		alns.AddInsertOperator(&regret_4);
+	{
+		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_4);
+	}
 	//else if(strcmp(Parameters::GetConstructionHeuristic(),"REGn")==0)
 	//	alns.AddInsertOperator(&regret_n);
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"ALL")==0)
@@ -299,4 +305,5 @@ int main(int argc, char ** argv)
 	solutionFile.close();		
 
 	return 0;
+
 }
