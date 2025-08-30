@@ -13,7 +13,7 @@ ExactBrpUserCutCallBackO::~ExactBrpUserCutCallBackO()
 }
 void ExactBrpUserCutCallBackO::main()
 {
-	//printf("ExactSbrpUserCutCallBackO obj:%.2lf\n", (double)getObjValue());
+	//printf("ExactSbrpUserCutCallBackO obj:%.2lf theta:%.2lf\n", (double)getObjValue(),(double)getValue(_theta));
 	if(!isAfterCutLoop()) return;
 
 	IloNumArray values(getEnv());
@@ -53,7 +53,7 @@ ExactBrpLazyCallBackO::~ExactBrpLazyCallBackO()
 }
 void ExactBrpLazyCallBackO::main()
 {
-	//printf("ExactBrpLazyCallBackO obj:%.2lf\n", (double)getObjValue());
+	//printf("ExactLazyCutCallBackO obj:%.2lf theta:%.2lf\n", (double)getObjValue(),(double)getValue(_theta));
 	IloNumArray values(getEnv());
 	getValues(values,_x);
 	for(int i = 0 ; i < _graph->GetArcCount();i++)
@@ -69,17 +69,27 @@ void ExactBrpLazyCallBackO::main()
 	IloRangeArray inq(getEnv());
 	_sep->SeparateInt(inq);
 	
+	bool added_subtours = inq.getSize() == 0 ? false : true;
+
 	//_graph->MakePaths(); //It is done iff no subtour is found
 
 	if (inq.getSize() == 0)
 		_sep->SeparateOptCut(inq);
 
 	if(inq.getSize() >= 1 && add_constraints)
+	{
 		added_constraints.add(inq);
+	}
+		
 	for(int i=0;i<inq.getSize();i++)
 		add(inq[i]);
 
-	//printf("CallBack: dist:%.1lf t:%.1lf inqs:%d\n",_graph->GetCost(),getValue(_theta),(int)inq.getSize());
+	//printf("LazyCallBackEnd | Obj:%.1lf dist:%.1lf t:%.1lf inqs:%d\n",(double)getObjValue(), _graph->GetCost(),(double)getValue(_theta),(int)inq.getSize());
+	//if(!added_subtours)
+	//{
+	//	std::cout << inq[inq.getSize()-1] << std::endl;
+	//	getchar();
+	//}
 	inq.end();
 }
 

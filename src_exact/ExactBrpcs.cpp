@@ -32,61 +32,48 @@ void ExactBrpO::SolveProblem(IloEnv env)
 		
 		printf("re:%d sol:%.3lf status:%d nbnodes:%d time:%.3lf status:%d\n", (int)re, sol, cplex_status, (int)cplex.getNnodes(), time_taken,cplex_status);
 		
-		if( re && cplex_status == 11 )
-		{	
-			status = 11;
+		if( re && (cplex_status == 11 || cplex_status == 1) )
+		{
+			status = cplex_status;
 			ub = sol;
-			ub_distance = _sep->best_sol_distance;
-			ub_recourse = ub > 9999 ? 999999.0 : cplex.getValue(theta);
+			ub_distance = sol - cplex.getValue(theta);
+			ub_recourse = cplex.getValue(theta);
 			lb = cplex.getBestObjValue();
-			drvs = ub < 9999999.0 ? (int)cplex.getValue(z) : 9999999.0;
+			drvs = (int)cplex.getValue(z);
 			//cannot call cplex.GetValue() if no solution was found ...
-			printf("Timed out ObjLb:%.1lf Ub:%.1lf DistUbFromSep:%.1lf Rec:%.1lf Drvs:%d\n"
-					,lb,ub,ub_distance,ub_recourse,drvs);
-		}
-		else if( re && cplex_status == 1)
+			if(cplex_status == 11)
+				printf("Timed out ObjLb:%.1lf Ub:%.1lf Rec:%.1lf Drvs:%d\n"
+					,lb,ub,ub_recourse,drvs);
+			else 
+				printf("Optimal ObjLb:%.1lf Ub:%.1lf Rec:%.1lf Drvs:%d\n"
+					,lb,ub,ub_recourse,drvs);
+		} 
+		
+		if(_sep->best_solution.size() >= 1)
 		{
 			//build the solution
 			for (int i = 0; i < graph->GetArcCount(); i++)
 			{
-				graph->GetArc(i)->value = cplex.getValue(x[i]);
+				graph->GetArc(i)->value = (double)cplex.getValue(x[i]);
 				//printf("Arc:%d value:%.2lf\n",i,cplex.getValue(x[i]));
 			}
-				
 			graph->AssignPositiveValues();
 			graph->MakePaths();
 			//graph->ShowPosValueArcs();
-			printf("Solution IsInteger:%d Paths:%d\n",graph->IsInteger(),graph->GetPathCount()); graph->ShowPaths();
+			printf("Solution IsInteger:%d Paths:%d\n",graph->IsInteger(),graph->GetPathCount()); 
+			graph->ShowPaths();
 			
-			double sum_d = 0; double sum_rec = 0;
+			double sum_rec = 0;
 			for (int i = 0; i < graph->GetPathCount(); i++)
 			{
 				std::vector<Node*>& path = graph->GetPath(i);
 				
-				//double rec = RouteFeasibility::RecourseCost(prob,path);
-				//bool is_feas = RouteFeasibility::IsFeasible(prob,path);
-				double rec = r->CalculateContinueToNextMIP(path, prob->GetDriver(0)->capacity, 1);
+				int rec = r->CalculateContinueToNextMIP(path, prob->GetDriver(0)->capacity, 1);
 				bool is_feas = rec < 9990 ? true : false;
-				printf("Path:%d IsFeas:%d Rec:%.1lf\n",i,is_feas,rec);
-				
+				printf("Path:%d IsFeas:%d Rec:%d\n",i,is_feas,rec);
 				sum_rec += rec;
-				for (int j = 1; j < path.size(); j++)
-				{
-					ExBrpArcO* arc = graph->GetArc(path[j - 1]->no, path[j]->no);
-					sum_d += arc->cost;
-				}
 			}
-			std::cout << "Distances: " << sum_d << std::endl;
 			std::cout << "Theta: " << cplex.getValue(theta) << " sumRec: " << sum_rec << std::endl;
-			
-			status = 1;
-			ub = sum_d + cplex.getValue(theta);
-			ub_distance = sum_d;
-			ub_recourse = cplex.getValue(theta);
-			lb = ub;
-			drvs = (int)cplex.getValue(z);
-			
-			//graph->PrintGraph((char*)"sol.dot");
 		}
 
 		nb_inf_sets = _sep->nb_inf_sets;
@@ -120,10 +107,8 @@ void ExactBrpO::Init(IloEnv env)
 
 	x = IloNumVarArray(env, graph->GetArcCount(), 0, 1, ILOINT);
 	z = IloNumVar(env, prob->GetDriverCountLB(), prob->GetDriverCount(), ILOINT);
-	if(Parameters::GetBSSType() == SW)
-		theta = IloNumVar(env,0,IloInfinity,ILOFLOAT);
-	else if (Parameters::GetBSSType() == CS)
-		theta = IloNumVar(env,-IloInfinity,IloInfinity,ILOFLOAT);
+	theta = IloNumVar(env,prob->GetL(),IloInfinity,ILOFLOAT);
+	
 	theta.setName("t");
 	z.setName("z");
 	
@@ -132,28 +117,6 @@ void ExactBrpO::Init(IloEnv env)
 	{
 		ExBrpArcO* ar = graph->GetArc(i);
 		
-		/*std::pair<int, int> arc_key = {ar->from->no, ar->to->no};
-		if (arc_seen.count(arc_key)) {
-			int j = arc_seen[arc_key];  // index of the original
-			ExBrpArcO* ar_original = graph->GetArc(j);
-
-			std::cerr << "DUPLICATE ARC DETECTED:\n";
-			std::cerr << "Original arc at index " << j
-					  << ": from " << ar_original->from->no
-					  << " to " << ar_original->to->no
-					  << " cost: " << ar_original->cost << "\n";
-
-			std::cerr << "Duplicate arc at index " << i
-					  << ": from " << ar->from->no
-					  << " to " << ar->to->no
-					  << " cost: " << ar->cost << "\n";
-
-			std::cerr << "Press ENTER to continue...\n";
-			getchar();
-		} else {
-			arc_seen[arc_key] = i;  // record first occurrence
-		}*/
-
 		char name[40];
 		sprintf(name, "x%d_%d", ar->from->no, ar->to->no);
 		x[i].setName(name);
@@ -240,8 +203,8 @@ void ExactBrpO::Init(IloEnv env)
 
 	cplex = IloCplex(model);
 	SetMipStart();
-	cplex.exportModel("brp_first_stage.lp");
-	cplex.setParam(IloCplex::Param::TimeLimit,max_time-10.0);
+	//cplex.exportModel("brp_first_stage.lp");
+	cplex.setParam(IloCplex::Param::TimeLimit,max_time);
 	cplex.setParam(IloCplex::Param::Threads, 1);
 	cplex.setWarning(env.getNullStream());
 	cplex.setParam(IloCplex::Param::MIP::Tolerances::UpperCutoff, prob->GetUpperBound() + EPSILON + 0.01);

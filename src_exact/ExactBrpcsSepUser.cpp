@@ -245,7 +245,6 @@ int ExactBrpSepUser::TestAndAddInfeasiblePath(std::vector<Node*> & path, IloRang
 	return nb_inq;
 }
 
-
 void ExactBrpSepUser::CutCurrentSolution(IloRangeArray array)
 {
 	//printf("CutCurrentSolution\n");
@@ -284,12 +283,97 @@ int ExactBrpSepUser::AddInfeasiblePath(IloRangeArray array, std::vector<Node*> &
 	
 	expr.end();
 	
-	return nb ? nb_inf_paths++ : 0;
-		
-		
+	return nb ? nb_inf_paths++ : 0;	
 }
 
+
 void ExactBrpSepUser::SeparateOptCut(IloRangeArray array)
+{
+    int Q = _prob->GetDriver(0)->capacity;
+    int cost = 0;
+    std::vector<int> costs(_graph->GetPathCount(), 0);
+    int infeasible_paths = 0;
+
+    // Compute recourse costs for each path
+    for(int i = 0; i < _graph->GetPathCount(); i++)
+    {
+        costs[i] = _r->CalculateContinueToNextMIP(_graph->GetPath(i), Q, 1);
+        cost += costs[i];
+        if(costs[i] > 9990)
+            infeasible_paths += AddInfeasiblePath(array, _graph->GetPath(i));
+    }
+    if(infeasible_paths)
+        return;
+
+    // Update best solution
+    if(_graph->GetCost() + cost < best_sol)
+    {
+        best_sol_distance = _graph->GetCost();
+        best_sol_recourse = cost;
+        best_sol = best_sol_distance + best_sol_recourse;
+        printf("New solution:%.3lf dist:%.1lf rec:%.3lf OptCuts:%d Subtours:%d InfSolCuts:%d InfPathCuts:%d\n",
+                best_sol, best_sol_distance, best_sol_recourse, nb_opt_cuts,
+                nb_sub_tour_frac+nb_sub_tours, nb_infeasible_solution_cuts, nb_inf_paths);
+        best_solution.clear();
+        for(int i = 0; i < _graph->GetPathCount(); i++)
+		{
+			best_solution.push_back(_graph->GetPath(i));
+		}
+		//_graph->ShowPaths();
+    }
+	
+	double dist = 0.0;
+    // === Add optimality cut (Equation (31)) ===
+    {
+        IloEnv env = array.getEnv();
+        IloExpr expr(env);
+
+        int theta_r = cost;  // Q(x^v) 
+        expr += _theta;  // left-hand side
+
+        int S_size = 0;
+        IloExpr sum_in(env);   // Σ_{i in x^v_1} x_i
+
+        for(int i=0;i<_graph->GetPosArcCount();i++)
+		{
+			ExBrpArcO * a = _graph->GetPosArc(i);
+            if(a != NULL)
+			{
+				if(std::abs(a->value - 1.0) < EPSILON)
+				{
+					sum_in += _x[a->index];
+					dist += a->cost;
+                    S_size++;
+				}
+				
+			}
+		}
+
+        // θ ≥ (θ_r - L)(Σ_in - |S| + 1) + L
+		expr -= (theta_r - _prob->GetL()) * (sum_in - S_size + 1);
+        expr -= _prob->GetL();
+
+        array.add(expr >= 0);
+
+        // Debug print
+        //std::cout << "OptCut[" << nb_opt_cuts << "]: θ ≥ (" << theta_r - L 
+        //          << ")*(Σ_in - " << S_size << " + 1) + " << L
+        //          << " | S_size=" << S_size
+        //          << " total_pos_arcs=" << _graph->GetPosArcCount() 
+		//		  << " dist=" << dist
+		//		  << " θ_r=" << theta_r
+		//		  << " L=" << L
+        //          << std::endl;
+		//std::cout << array[array.getSize()-1] << std::endl;
+		//getchar();
+		
+        expr.end();
+        sum_in.end();
+        nb_opt_cuts++;
+    }
+}
+
+/*void ExactBrpSepUser::SeparateOptCut(IloRangeArray array)
 {
 	int Q = _prob->GetDriver(0)->capacity;
 	double cost = 0;
@@ -302,7 +386,7 @@ void ExactBrpSepUser::SeparateOptCut(IloRangeArray array)
 		if(costs[i] > 9990)
 			infeasible_paths += AddInfeasiblePath(array,_graph->GetPath(i));
 	}
-	if(infeasible_paths)
+	if(array.getSize())
 		return;
 		
 	if(_graph->GetCost() + cost < best_sol)
@@ -316,6 +400,7 @@ void ExactBrpSepUser::SeparateOptCut(IloRangeArray array)
 		best_solution.clear();
 		for(int i = 0; i < _graph->GetPathCount(); i++)
 			best_solution.push_back( _graph->GetPath(i) );
+		_graph->ShowPaths();
 	}
 
 	{
@@ -345,68 +430,6 @@ void ExactBrpSepUser::SeparateOptCut(IloRangeArray array)
 		nb_opt_cuts++;
 	}
 	//CutCurrentSolution(array);
-}
-
-/*void ExactBrpSepUser::SeparateOptCut(IloRangeArray array)
-{
-	int Q = _prob->GetDriver(0)->capacity;
-	double cost = 0;
-	std::vector<double> costs(_graph->GetPathCount(), 0);
-	bool is_feasible = true;
-	for(int i = 0; i < _graph->GetPathCount(); i++)
-	{
-		costs[i] = _r->CalculateContinueToNextMIP(_graph->GetPath(i),Q,1);
-		cost += costs[i];
-		if(costs[i] > 9990){
-			is_feasible = false; break;
-		} 
-	}
-	
-	if(!is_feasible)
-	{
-		CutCurrentSolution(array);
-		return;
-	}
-		
-	
-	if(_graph->GetCost() + cost < best_sol)
-	{
-		best_sol_distance = _graph->GetCost();
-		best_sol_recourse = cost;
-		best_sol = best_sol_distance + best_sol_recourse;
-		printf("New solution:%.3lf dist:%.1lf rec:%.3lf OptCuts:%d Subtours:%d InfSolCuts:%d InfPathCuts:%d\n", 
-				best_sol, best_sol_distance, best_sol_recourse,nb_opt_cuts,
-				nb_sub_tour_frac+nb_sub_tours,nb_infeasible_solution_cuts,nb_inf_paths);
-		best_solution.clear();
-		for(int i = 0; i < _graph->GetPathCount(); i++)
-			best_solution.push_back( _graph->GetPath(i) );
-	}
-
-	{
-		//add optimality cut
-		IloExpr expr(array.getEnv());
-		expr += _theta;
-
-		int nb = 0;
-		for(int i = 0; i < _graph->GetPathCount(); i++)
-		{
-			std::vector<Node*> & path = _graph->GetPath(i);
-			if(costs[i] <= 0.0001) continue;
-
-			for(int j = 1; j < path.size(); j++)
-			{
-				ExBrpArcO* arc = _graph->GetArc(path[j - 1]->no, path[j]->no);
-
-				if(arc->from->type != NODE_TYPE_CUSTOMER || arc->to->type != NODE_TYPE_CUSTOMER) continue;
-				expr -= cost * _x[arc->index];
-				nb++;
-			}
-		}
-
-		array.add(expr >= cost * (1 - nb));
-		//std::cout << "OptCut: " << nb_opt_cuts << " Cost: " << cost << " Cut: " << expr << " >= " << cost * (1 - nb) << std::endl;
-		expr.end();
-		nb_opt_cuts++;
-	}
 }*/
+
 

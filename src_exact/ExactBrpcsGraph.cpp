@@ -53,10 +53,10 @@ ExactBrpGraphO::ExactBrpGraphO(Prob * prob, RouteFeasibility * r)
 			k++;
 			
 			if (k % 10000 == 0)
-				printf("Processed %d arcs, removed %d\n", k, removed_arcs);
+				printf("Processed %d arcs\n", k);
 		}
 		
-	printf("nodes:%d arcs:%d removed:%d\n", (int)_nodes.size(), (int)_arcs.size(), removed_arcs);
+	printf("nodes:%d arcs:%d\n", (int)_nodes.size(), (int)_arcs.size());
 
 	_arcs_of.resize(_nodes.size());
 	_arcs_in_of.resize(_nodes.size());
@@ -169,8 +169,13 @@ void ExactBrpGraphO::PrintGraph(char* filename)
 void ExactBrpGraphO::ShowPaths()
 {
 	for (size_t i = 0; i < _paths.size(); i++)
-	{
-		printf("path:%d nb:%d nodes:", (int)i, (int)_paths[i].size());
+	{	
+
+		double dist = 0.0; int rec = _r->CalculateContinueToNextMIP(_paths[i],_prob->GetDriver(0)->capacity,1);
+		for (size_t j = 1; j < _paths[i].size(); j++)
+			dist += GetArc(_paths[i][j-1]->no,_paths[i][j]->no)->cost;
+		
+		printf("path:%d nbNonDepot:%d dist:%.2lf rec:%d nodes:", (int)i, (int)_paths[i].size()-2, dist, rec);
 		for (size_t j = 0; j < _paths[i].size(); j++)
 			printf("%d-", _paths[i][j]->no);
 		printf("\n");

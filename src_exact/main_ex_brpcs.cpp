@@ -36,6 +36,13 @@ int main(int argc, char ** argv)
 	InsRmvMethodBRPCS method(&r,&pr);
 	SteepestDescentInsertionBRPCS steep_seq(method,&r,0.5);	
 	
+	int sum_u=0;
+	for(int i=0;i<pr.GetNodeCount();i++)
+			sum_u += pr.GetNode(i)->h_u_i0;
+	int L = Parameters::GetBSSType() == SW ? 0 : -1*sum_u;	
+	pr.SetL(L);
+	printf("Lower bound L:%d\n",pr.GetL());
+	
 	steep_seq.Insert(sol,true); //Sequential insertion of nodes to build an initial solution and store in sol
 	sol.Update();
 	sol.Show();
@@ -88,7 +95,7 @@ int main(int argc, char ** argv)
 	}
 	re_file_CN << std::string(Parameters::GetCityName()) << "," << Parameters::GetNbStations() << "," << Parameters::GetUValue() 
 				<< "," << "CN" << "," << total_init_reg << "," << total_init_elec << "," << total_init_u << "," 
-				<< exact_status << "," << exact_ub << "," << exact_lb << "," << exact_ub_distance << "," << exact_ub_recourse << "," << exact_nb_drivers << "," 
+				<< exact_status << "," << exact_ub << "," << exact_lb << "," << exact_ub_distance << "," << exact_ub_recourse << "," << pr.GetL() << "," << exact_nb_drivers << "," 
 				<< nb_opt_cuts << "," << nb_sub_tours << "," << nb_inf_paths;
 				
 	re_file_CN << std::fixed << std::setprecision(2) << elapsed_time << "\n";
