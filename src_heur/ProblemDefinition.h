@@ -11,7 +11,7 @@
 class Prob
 {
 	public:
-	Prob(): _nodes(0),_customers(0),_drivers(0),_distances(NULL), _dimension(0), _driver_count_lb(1), _upper_bound(9999999999.9), _delete_matrices(true)
+	Prob(): _nodes(0),_customers(0),_drivers(0),_distances(NULL), _dimension(0), _driver_count_lb(1), _upper_bound(9999999999.9), _delete_matrices(true), L(0)
 	{
 		_nodes.reserve(4000);		//to avoid costly reallocations
 		_customers.reserve(4000);
@@ -91,6 +91,9 @@ class Prob
 
 	int GetDriverCountLB(){return _driver_count_lb;}
 	void SetDriverCountLB(int d){_driver_count_lb = d;}
+	
+	void SetL(int l){ L = l;}
+	int GetL(){ return L;}
  	
 	private:
 	std::vector<Node> _nodes;			//list of nodes
@@ -104,6 +107,7 @@ class Prob
 	double _upper_bound;
 	bool _delete_matrices;		//if the problem definition comes from a copy it is false,
 										//if it is original it is true
+	int L;
 
   
 };
