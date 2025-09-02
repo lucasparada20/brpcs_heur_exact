@@ -1,5 +1,6 @@
-# brpcs_heur
-An implementation of the ALNS meta heuristic for the bicycle repositioning problem with charging stations
+# brpcs_heur_exact
+
+An implementation of the ALNS meta heuristic for the bicycle repositioning problem with charging stations, and an exact branch & cut method.
 
 ## Building the code in Linux
 
