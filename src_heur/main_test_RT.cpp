@@ -268,13 +268,19 @@ int main(int argc, char ** argv)
 	if(strcmp(Parameters::GetConstructionHeuristic(),"SEQ")==0)
 		alns.AddInsertOperator(&seq);
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG2")==0)
-		alns.AddInsertOperator(&regret_2);
+	{
+		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_2);
+	}
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG3")==0)
-		alns.AddInsertOperator(&regret_3);
+	{
+		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_3);
+	}
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"REG4")==0)
-		alns.AddInsertOperator(&regret_4);
-	else if(strcmp(Parameters::GetConstructionHeuristic(),"REGn")==0)
-		alns.AddInsertOperator(&regret_n);
+	{
+		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_4);
+	}
+	//else if(strcmp(Parameters::GetConstructionHeuristic(),"REGn")==0)
+	//	alns.AddInsertOperator(&regret_n);
 	else if(strcmp(Parameters::GetConstructionHeuristic(),"ALL")==0)
 	{
 		alns.AddInsertOperator(&seq); alns.AddInsertOperator(&regret_2); alns.AddInsertOperator(&regret_3);
@@ -290,7 +296,7 @@ int main(int argc, char ** argv)
 	alns.SetAcceptationGap(0.001);
 	alns.SetTemperatureIterInit(0);
 	alns.SetTemperature(0.9980); //For RT
-	alns.SetIterationCount(100);//Remember to set a lot of iterations
+	alns.SetIterationCount(5000);//Remember to set a lot of iterations
 	
 	// Done in Parameters at the beginning, unless you want to restock
 	Parameters::SetCostPolicy(RT); // Use Restocking Trips policy

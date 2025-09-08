@@ -4,7 +4,7 @@ CXX = g++
 CXXFLAGS ?= -std=c++11 -Wall
 
 # CPLEX directory
-CPLEX_DIR = /some/path/to/CPLEX
+CPLEX_DIR = /home/lucasparada20/CPLEX_Studio2211
 
 # Include and lib paths
 CPLEX_INC = -I$(CPLEX_DIR)/cplex/include -I$(CPLEX_DIR)/concert/include
@@ -61,4 +61,3 @@ usage:
 # Clean rule
 clean:
 	rm -f $(TARGET) *.o
-

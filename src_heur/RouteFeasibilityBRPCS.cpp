@@ -1095,7 +1095,7 @@ int RouteFeasibility::CalculateContinueToNextSW(std::vector<Node*>& nodes, int Q
     if (!cplex.solve())
         return 999999;
 
-    return (int)(cplex.getObjValue());
+    return (int)(cplex.getObjValue() + 0.5);
 }
 
 double RouteFeasibility::CalculateRestockingTripsSW(std::vector<Node*>& nodes, int Q, int delta, IloEnv env)

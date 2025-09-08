@@ -22,6 +22,7 @@ class CostFunctionBRPCS
 		void Update(Sol & s);
 		void Update(Sol & s, Driver * d);
 		void Show(Sol * s, Driver * d);
+		void Show(Sol * s, Driver * d, int & total_route_cost);
 		
 	private:
 		std::vector<Node*> path;

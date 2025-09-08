@@ -13,7 +13,7 @@ double CostFunctionBRPCS::GetCost(Sol & s)
 
 double CostFunctionBRPCS::GetCost(Sol & s,Driver * d)
 {
-	double d1 = 0;
+	double d1 = 0.0;
 	int Q = d->capacity;
 	int init_q = 0; int init_qe = 0;
 	
@@ -74,7 +74,9 @@ double CostFunctionBRPCS::GetCost(Sol & s,Driver * d)
 	}*/
 		
 	if(rec < 9999.0)
-		cost = d1 + rec;	
+		cost = Parameters::GetCostPolicy() == RT ? 
+				d1 + rec 
+				: d1 + (double)rec ;	
 	
 	return cost;
 }
@@ -189,33 +191,10 @@ void CostFunctionBRPCS::Update(Sol & s, Driver * d)
 		(d->sum_q + d->sum_q_e <= Q) &&
 		(d->sum_q + d->sum_q_e >= -Q);
 	
-	d->curRecourse = AlnsOutils::CalculateRouteCost(_r, path, Q, d->sum_q, d->sum_q_e, (is_feasible && within_capacity));
+	d->curRecourse = INF_ROUTE_COST;
 
-	/*if (Parameters::GetCostPolicy() == CN) { // Continue-to-next
-		if (!is_feasible || !within_capacity)
-			has_zero_rec = false;
-		
-		if (has_zero_rec && Parameters::GetBSSType() == CS){
-			has_zero_rec = RouteFeasibility::HasZeroHCUnchargedViolations(path, Q, false, d->sum_q, d->sum_q_e);
-		} else if (has_zero_rec && Parameters::GetBSSType() == SW){
-			has_zero_rec = RouteFeasibility::HasZeroHCBase(path, Q, false, d->sum_q, d->sum_q_e);
-		}
-		
-		d->curRecourse = is_feasible
-			? (has_zero_rec ? 0 : _r->CalculateContinueToNextMIP(path, Q, 1))
-			: INF_ROUTE_COST;
-	} else if (Parameters::GetCostPolicy() == RT){ // Restock
-		if (!within_capacity)
-			has_zero_rec = false;
-		
-		if (has_zero_rec && Parameters::GetBSSType() == CS){
-			has_zero_rec = RouteFeasibility::HasZeroHCUncharged(path, Q, false, d->sum_q, d->sum_q_e);
-		} else if (has_zero_rec && Parameters::GetBSSType() == SW){
-			has_zero_rec = RouteFeasibility::HasZeroHCBase(path, Q, false, d->sum_q, d->sum_q_e);
-		}
-	
-		d->curRecourse = has_zero_rec ? 0 : _r->CalculateRestockingTrips(path, Q, 1);
-	}*/
+	if (is_feasible || Parameters::GetCostPolicy() == RT) 
+		d->curRecourse = AlnsOutils::CalculateRouteCost(_r, path, Q, d->sum_q, d->sum_q_e, within_capacity);
 	
 	if (path[path.size()-1]->type == NODE_TYPE_CUSTOMER)
 	{
@@ -311,3 +290,47 @@ void CostFunctionBRPCS::Show(Sol * s, Driver * d)
 	}
 	printf("\n");
 }
+
+void CostFunctionBRPCS::Show(Sol * s, Driver * d, int & total_route_cost)
+{
+	double cost = GetCost(*s,d);
+	std::vector<Node*> path;
+	Node * cur = s->GetNode( d->StartNodeID );
+	double d1 = 0;
+	while(cur != NULL)
+	{
+		path.push_back(cur);
+		Node * next = s->GetNext(cur);
+		if(next != NULL)
+			d1 += s->GetDist(cur,next);
+		cur = next;
+	}
+	
+	int Q = d->capacity;
+	
+	double policy_cost = Parameters::GetCostPolicy() == CN ? 
+				(double)_r->CalculateContinueToNextMIP(path,Q,1)
+				: _r->CalculateRestockingTrips(path,Q,1);
+				
+	printf("Route:%d cost:%.1lf policy:%s BSStype:%s policy_cost:%.1lf dist:%.2lf len:%d: ", 
+           d->id, cost, 
+		   Parameters::GetCostPolicy() == CN ? "CN" : "RT",
+		   Parameters::GetBSSType() == SW ? "SW" : "CS",
+		   policy_cost, d1, s->RoutesLength[d->id]);
+	total_route_cost += policy_cost;
+	
+	cur = s->GetNode( d->StartNodeID );
+	while(cur != NULL)
+	{
+		printf("%d-", cur->no);
+		
+		//Node * next = s->GetNext(cur);
+		//if(next != NULL)
+		//	printf("dist(%.1lf)-",s->GetDist(cur,next));
+		
+		cur = s->Next[ cur->id ];
+			
+	}
+	printf("\n");
+}
+

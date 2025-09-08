@@ -64,20 +64,8 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	
 	Parameters::SetBSSType((char*)bss_type.c_str());
 	
-	if (Parameters::GetBSSType() == SW &&
-		strcmp(Parameters::GetCityName(), "mexicocity") != 0 &&
-		strcmp(Parameters::GetCityName(), "montreal") != 0 &&
-		strcmp(Parameters::GetCityName(), "rio") != 0 &&
-		strcmp(Parameters::GetCityName(), "washington") != 0)
-	{
-		Parameters::SetMaxRouteDistance(100.0);
-	}
-	else
-		Parameters::SetMaxRouteDistance(75.0);
-
-	
 	printf("Bss type from load: %s MaxDist: %.1lf city_name: %s\n",
-		Parameters::GetBSSType() == 1? "CS" : "SW",
+		Parameters::GetBSSType() == SW? "SW" : "CS",
 		Parameters::MaxRouteDistance(),
 		Parameters::GetCityName());
 	
@@ -234,7 +222,7 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 	pr.SetMaxtrices(d,dim);	
 
 	printf("Max distance in the matrix:%.2lf fromId:%d toId:%d\n",max_distance,max_dist_n1,max_dist_n2);
-	printf("Stations with depot round-trip distance > 100.0:\n");
+	printf("Stations with depot round-trip distance > %.1lf:\n",Parameters::MaxRouteDistance());
 	Node* dp = pr.GetNode(0); // assuming distID=0 is the depot
 	int counter = 0;
 	for (int i = 0; i < stations-1; i++)
@@ -245,7 +233,7 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 		double dist_from = pr.GetDist(pr.GetNode(i), dp);
 		double total = dist_to + dist_from;
 
-		if (total > 100.0)
+		if (total > Parameters::MaxRouteDistance())
 		{
 			printf("Node ID: %d | dist_to: %.2lf | dist_from: %.2lf | total: %.2lf\n",
 				   pr.GetNode(i)->id, dist_to, dist_from, total);
@@ -254,7 +242,7 @@ void LoadBRPCS::LoadInstance(Prob & pr, char * filename)
 		}
 	}
 	printf("Total nodes infeasible due to max dist:%d\n",counter);
-	if(counter) exit(1);
+	//if(counter) exit(1);
 	
 	
 	/*for(int i=0; i<dim; i++)
@@ -292,6 +280,7 @@ void LoadBRPCS::LoadSolution(Prob & pr, Sol & sol, char * filename)
 		exit(1);
 	}
 	
+	int total_stations = 0;
 	std::vector<std::vector<int>> route_ints; route_ints.resize( nb_routes, std::vector<int>(0) );
 	for (int i = 0; i < nb_routes; i++)
 	{
@@ -311,7 +300,7 @@ void LoadBRPCS::LoadSolution(Prob & pr, Sol & sol, char * filename)
 			std::cerr << "Error parsing header line for route " << i << ": " << header_line << "\n";
 			exit(1);
 		}
-
+		total_stations += nb_stations;
 		std::cout << "Route " << route_id << " | Stations: " << nb_stations
 				  << " | SumQ: " << sum_q << " | SumQE: " << sum_qe
 				  << " | Dist: " << std::setprecision(2) << dist << "\n";
@@ -352,5 +341,6 @@ void LoadBRPCS::LoadSolution(Prob & pr, Sol & sol, char * filename)
 			
 		sol.MakePath(i,path);
 	}
+	printf("Total stations in the file:%d\n",total_stations);
 
 }

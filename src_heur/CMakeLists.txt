@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # if no -std=c++11, generate an error rather than silently falling back to an older standard.
 
 # Hard code the path to the CPLEX directory
-set(CPLEX_DIR "/some/path/to/CPLEX")
+set(CPLEX_DIR "/home/lucasparada20/CPLEX_Studio2211")
 message("Using CPLEX_DIR = ${CPLEX_DIR}")
 
 # Include directories for CPLEX
@@ -52,7 +52,7 @@ endforeach()
 #main_test_RT.cpp
 set(SOURCES
 	AlnsBRPCS.cpp
-    main_test_RT.cpp
+    main_test_CN.cpp
     RouteFeasibilityBRPCS.cpp
     Parameters.cpp
     LoadBRPCS.cpp
@@ -77,5 +77,4 @@ target_link_libraries(exec_heur PRIVATE CPLEX)
 add_custom_target(usage
     COMMAND ${CMAKE_COMMAND} -E echo "./exec_heur instance_file=../instances/newyork4.txt"
 )
-
 

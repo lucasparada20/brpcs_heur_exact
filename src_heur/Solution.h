@@ -505,10 +505,14 @@ class Sol
 			for(int i=0;i<GetDriverCount();i++)
 				if(RoutesLength[i])
 					nbnonempty++;
-			printf("Solution non-empty routes:%d routes:%d cost:%.2lf\n", nbnonempty,GetDriverCount(), _cost_func->GetCost(*this) );
+			
+			int total_route_cost = 0;
 			for(int i=0;i<GetDriverCount();i++)
 				if(show_output && RoutesLength[i] >= 1)
-					Show(GetDriver(i));
+					Show(GetDriver(i), total_route_cost);
+			
+			printf("Solution non-empty routes:%d routes:%d cost:%.2lf rec:%d\n", 
+					nbnonempty, GetDriverCount(), _cost_func->GetCost(*this),total_route_cost );
 
 			if(show_output && GetUnassignedCount() >= 1)
 			{
@@ -518,7 +522,13 @@ class Sol
 				printf("\n");
 			}
 		}
-
+		
+		void Show(Driver * d, int & total_route_cost)
+		{
+			if(_cost_func != NULL)
+				_cost_func->Show(this, d, total_route_cost);
+		}
+		
 		void Show(Driver * d)
 		{
 			if(_cost_func != NULL)

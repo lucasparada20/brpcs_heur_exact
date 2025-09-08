@@ -153,6 +153,18 @@ int main(int argc, char ** argv)
 
 	Sol sol(&pr,&cost_func);
 	sol.PutAllNodesToUnassigned();
+
+	//Testing a solution
+	if(Parameters::GetInitialSolutionFileName()[0] != '\0')
+	{
+		printf("Cost policy:%s\n",Parameters::GetCostPolicy() == RT ? "Restock" : "Continue-To-Next");
+		load.LoadSolution(pr,sol,Parameters::GetInitialSolutionFileName());
+		printf("Loaded the following solution:\n");
+		Parameters::SetCostPolicy(CN); // Use Restocking Trips policy
+		sol.Update();
+		sol.Show();
+		exit(1);
+	}
 	
 	InsRmvMethodBRPCS method(&r,&pr);
 	SteepestDescentInsertionBRPCS steep_seq(method,&r,0.5);
@@ -275,7 +287,7 @@ int main(int argc, char ** argv)
 	
 	if(!solutionFile.is_open())
 	{
-		printf("Could not open solutionFile file:%s\n",solution_file_name_str); 
+		printf("Could not open solutionFile file:%s\n",solution_file_name_str.c_str()); 
 		exit(1);
 	}
 	
@@ -305,5 +317,4 @@ int main(int argc, char ** argv)
 	solutionFile.close();		
 
 	return 0;
-
 }

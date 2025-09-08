@@ -138,7 +138,11 @@ void SeqInsertBRPCS::Insert(Sol & s, bool show)
 
 
 	for(size_t i = 0 ; i < refused.size() ; i++)
+	{
+		//printf("Unassigneds:%d nId:%d\n",s.GetUnassignedCount(),n->id);
 		s.AddToUnassigneds( refused[i] );
+	}
+		
 	//printf("Cost after SeqInsertion:%.2lf nbUnassigneds:%d\n",s.GetCost(),s.GetUnassignedCount());
 	//printf("Unassigneds: ");
 	//for(int i=0;i<s.GetUnassignedCount();i++)
