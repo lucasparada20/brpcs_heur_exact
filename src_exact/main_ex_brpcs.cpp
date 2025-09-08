@@ -50,7 +50,7 @@ int main(int argc, char ** argv)
 	
 	ExactBrpO ex;
 	ex.SetSolution(sol);
-	ex.max_time = 30;
+	ex.max_time = 300;
 	ex.Solve(&pr,&r);
 	
 	double exact_ub_distance = -1.0; double exact_ub_recourse = -1.0; double exact_ub = -1.0; double exact_lb = -1.0; int exact_nb_drivers = -1; int exact_status = -1; int nb_sub_tours = -1; int nb_opt_cuts = 0; int nb_inf_paths = 0; double elapsed_time = -1.0;
